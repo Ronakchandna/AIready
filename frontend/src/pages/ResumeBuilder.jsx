@@ -685,7 +685,12 @@ const ResumeBuilder = () => {
     const [activeTab, setActiveTab] = useState('contact');
     const { saveToCloud, isSaving, lastSaved, resumeData, updateTheme, importFromLinkedIn, importPrebuiltResume, resumeId, loadFromCloud } = useResume();
     const [uploading, setUploading] = useState(false);
-    const [zoom, setZoom] = useState(100);
+    // Start zoomed so the A4 page (794px) fits next to the sidebar (256px) and editor (420px)
+    const [zoom, setZoom] = useState(() => {
+        if (typeof window === 'undefined' || window.innerWidth < 768) return 100;
+        const available = window.innerWidth - 256 - 420 - 64;
+        return Math.max(50, Math.min(100, Math.floor((available / 794) * 20) * 5));
+    });
     const [mobileView, setMobileView] = useState('edit'); // 'edit' or 'preview'
     const [exportOpen, setExportOpen] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -810,31 +815,31 @@ const ResumeBuilder = () => {
     const PreviewPanel = () => (
         <div className={`flex-1 bg-slate-200 dark:bg-slate-800 overflow-y-auto overflow-x-auto flex flex-col items-center p-4 md:p-8 custom-scrollbar ${mobileView === 'preview' ? 'flex' : 'hidden md:flex'}`}>
             {/* Toolbar */}
-            <div className="w-full max-w-[210mm] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 md:mb-6 sticky top-0 z-20">
-                <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto">
+            <div className="w-full max-w-[210mm] flex flex-wrap justify-between items-center gap-3 mb-4 md:mb-6 sticky top-0 z-20">
+                <div className="flex items-center gap-2 md:gap-3">
                     <button
                         onClick={saveToCloud}
                         disabled={isSaving}
-                        className="bg-slate-800 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-900 transition-all shadow-md active:scale-95 disabled:bg-slate-500 text-sm"
+                        className="bg-slate-800 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-900 transition-all shadow-md active:scale-95 disabled:bg-slate-500 text-sm whitespace-nowrap"
                     >
                         {isSaving ? 'Saving...' : <><span className="hidden sm:inline">💾 Save to Cloud</span><span className="sm:hidden">💾 Save</span></>}
                     </button>
                     {lastSaved && (
-                        <span className="text-[10px] md:text-xs font-semibold text-slate-500 hidden sm:inline">
+                        <span className="text-[10px] md:text-xs font-semibold text-slate-500 hidden 2xl:inline whitespace-nowrap">
                             Last saved: {lastSaved.toLocaleTimeString()}
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    {/* Zoom control — hidden on mobile */}
-                    <div className="hidden lg:flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-sm mr-2">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 justify-end">
+                    {/* Zoom control — only on wide screens */}
+                    <div className="hidden xl:flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-sm mr-2">
                         <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="text-slate-400 hover:text-brand-600 font-bold px-1.5" disabled={zoom <= 50}>-</button>
                         <span className="text-xs font-bold text-slate-600 w-9 text-center">{zoom}%</span>
                         <input type="range" min="50" max="150" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-16 accent-brand-600 cursor-pointer" />
                         <button onClick={() => setZoom(z => Math.min(150, z + 10))} className="text-slate-400 hover:text-brand-600 font-bold px-1.5" disabled={zoom >= 150}>+</button>
                     </div>
 
-                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wide hidden xl:block">Theme:</label>
+                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wide hidden 2xl:block">Theme:</label>
                     <select
                         value={resumeData.theme || 'modern'}
                         onChange={(e) => updateTheme(e.target.value)}
