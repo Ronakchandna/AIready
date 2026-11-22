@@ -915,6 +915,8 @@ aireadyproject/
 ├── README.md                 project overview, setup, deployment
 ├── full detail.md            this report
 ├── render.yaml               Render Blueprint (all services)
+├── .github/workflows/        CI (all tests on every push) + keep-awake schedule
+├── docs/screenshots/         screenshots used in the README
 ├── ai-engine/                Python FastAPI AI/NLP service (+ Dockerfile, tests/)
 ├── backend/                  Node.js Express API (+ tests/)
 ├── frontend/                 React web app (+ vercel.json)

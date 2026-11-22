@@ -13,6 +13,20 @@ ready-made account (no sign-up).
 
 ---
 
+## Screenshots
+
+| Dashboard | Resume Builder |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.jpg) | ![Resume Builder](docs/screenshots/resume-builder.jpg) |
+| **AI Career Coach** (knows your resume) | **Version history** (score trend) |
+| ![AI Career Coach](docs/screenshots/career-coach.jpg) | ![Version history](docs/screenshots/version-history.jpg) |
+| **Job Tracker** (Kanban) | **Leaderboard** |
+| ![Job Tracker](docs/screenshots/job-tracker.jpg) | ![Leaderboard](docs/screenshots/leaderboard.jpg) |
+
+<p align="center"><img src="docs/screenshots/login.jpg" alt="Login with one-click demo" width="70%"></p>
+
+---
+
 ## Features
 
 | Feature | What it does |
