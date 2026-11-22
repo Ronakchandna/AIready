@@ -46,7 +46,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://airesume-web.onrender.com
+        value: https://airesume-web.onrender.com,https://aiready-sigma.vercel.app   # comma separated
       - key: AI_SERVICE_URL
         value: https://ai-resume-engine.onrender.com
       - key: AI_API_KEY

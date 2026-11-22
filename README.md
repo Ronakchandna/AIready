@@ -21,6 +21,14 @@ Browser ──► frontend (static) ──► backend (/api, JWT) ──► Supa
 2. **Backend** - `cd backend && npm install && copy .env.example .env` (fill it in) `&& npm start` (port 5000)
 3. **Frontend** - `cd frontend && npm install && copy .env.example .env && npm start` (port 3000)
 
+## Live
+
+- Web app: https://aiready-sigma.vercel.app (Vercel) and https://airesume-web.onrender.com (Render)
+- API: https://airesume-backend-xmgp.onrender.com/api · AI engine: https://ai-resume-engine.onrender.com
+
+The frontend is also deployed on **Vercel** (project root `frontend`, env `REACT_APP_NODE_API_URL`);
+its URL must be listed in the backend's `FRONTEND_URL`.
+
 ## Deploy (Render, free)
 
 `render.yaml` defines all three services. In Render: **New → Blueprint → this repo**, then fill in the secret
