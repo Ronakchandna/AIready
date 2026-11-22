@@ -59,6 +59,10 @@ def _retryable(exc: BaseException) -> bool:
 def _call(messages: list, json_mode: bool, temperature: float, max_tokens: int) -> str:
     kwargs: dict[str, Any] = dict(
         model=config.GROQ_MODEL, messages=messages, temperature=temperature, max_tokens=max_tokens)
+    if "gpt-oss" in config.GROQ_MODEL:
+        # reasoning models spend completion tokens on thinking: keep it short and leave headroom
+        kwargs["reasoning_effort"] = "low"
+        kwargs["max_tokens"] = max_tokens + 600
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     completion = _get_client().chat.completions.create(**kwargs)
