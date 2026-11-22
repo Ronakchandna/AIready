@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
+import { clean as cleanPdfText } from '../utils/generateAtsPdf';
 import { PenTool, Download, Copy, CheckCircle, FileText } from 'lucide-react';
 
 const CoverLetter = () => {
@@ -70,7 +71,7 @@ const CoverLetter = () => {
                 currentY += 4;
                 return;
             }
-            const lines = pdf.splitTextToSize(p, contentWidth);
+            const lines = pdf.splitTextToSize(cleanPdfText(p), contentWidth);
             lines.forEach(line => {
                 if (currentY > pageHeight - margin) {
                     pdf.addPage();
