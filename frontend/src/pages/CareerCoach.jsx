@@ -19,6 +19,18 @@ const WELCOME = {
     content: "Hi! I'm your AI career coach. Ask me anything about resumes, interviews, skills to learn, job search or offers. I can see the resume in your Resume Builder, so my advice is personalised.",
 };
 
+// Render the small amount of markdown models tend to use anyway: **bold** and "- " bullets
+const RichText = ({ text }) => text.split('\n').map((line, i) => {
+    const bullet = /^\s*[-*•]\s+/.test(line);
+    const parts = line.replace(/^\s*[-*•]\s+/, '').replace(/^#{1,6}\s+/, '').split(/(\*\*[^*]+\*\*)/g);
+    const content = parts.map((p, j) => (p.startsWith('**') && p.endsWith('**') && p.length > 4
+        ? <strong key={j}>{p.slice(2, -2)}</strong> : p));
+    if (!line.trim()) return <div key={i} className="h-2" />;
+    return bullet
+        ? <div key={i} className="flex gap-2 pl-1"><span className="text-brand-500">•</span><span>{content}</span></div>
+        : <div key={i}>{content}</div>;
+});
+
 const storageKey = (userId) => `aiready-coach-${userId || 'guest'}`;
 const loadHistory = (userId) => {
     try {
@@ -116,7 +128,7 @@ const CareerCoach = () => {
                         <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${m.role === 'user'
                             ? 'bg-brand-600 text-white rounded-tr-sm'
                             : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-tl-sm'}`}>
-                            {m.content}
+                            {m.role === 'assistant' ? <RichText text={m.content} /> : m.content}
                             {m.offline && <div className="mt-2 text-[11px] font-bold text-amber-600">Offline answer - the AI model is unavailable right now.</div>}
                         </div>
                     </div>
