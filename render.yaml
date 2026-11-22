@@ -85,7 +85,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: REACT_APP_NODE_API_URL
-        value: https://airesume-backend.onrender.com/api
+        value: https://airesume-backend-xmgp.onrender.com/api
     routes:
       - type: rewrite
         source: /*
