@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Resume Engine</title>
+<style>
+:root{--bg:#f5f6fb;--card:#fff;--text:#1a1e2b;--muted:#667085;--line:#e3e6ee;--accent:#5b5bf0;--accent-2:#8b5cf6;--accent-soft:#ededff;
+--good:#16a34a;--good-soft:#dcfce7;--bad:#dc2626;--bad-soft:#fee2e2;--warn:#d97706;--warn-soft:#fef3c7;--shadow:0 1px 2px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1118;--card:#171b26;--text:#e8eaf2;--muted:#9aa3b5;--line:#272d3d;--accent:#8284ff;--accent-soft:#232648;
+--good:#4ade80;--good-soft:#14301f;--bad:#f87171;--bad-soft:#3a1717;--warn:#fbbf24;--warn-soft:#33270c;--shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35)}}
+:root[data-theme="dark"]{--bg:#0e1118;--card:#171b26;--text:#e8eaf2;--muted:#9aa3b5;--line:#272d3d;--accent:#8284ff;--accent-soft:#232648;
+--good:#4ade80;--good-soft:#14301f;--bad:#f87171;--bad-soft:#3a1717;--warn:#fbbf24;--warn-soft:#33270c;--shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#fff;padding:18px 24px}
+.head{max-width:1100px;margin:auto;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+.brand h1{margin:0;font-size:22px;letter-spacing:-.3px}.brand p{margin:2px 0 0;opacity:.85;font-size:13px}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctrl input{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.16);color:#fff;width:210px}
+.ctrl input::placeholder{color:rgba(255,255,255,.7)}
+.pill{font-size:12px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.2)}
+.pill.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;margin-right:6px}
+.pill.off::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#fbbf24;margin-right:6px}
+.icon{background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer}
+nav{max-width:1100px;margin:18px auto 0;padding:0 16px;display:flex;gap:6px;overflow-x:auto}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--muted);padding:9px 15px;border-radius:10px;cursor:pointer;white-space:nowrap;font:inherit}
+nav button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:1100px;margin:16px auto 60px;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:17px}.card h3{margin:18px 0 8px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.sub{color:var(--muted);margin:0 0 14px;font-size:13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.ctrl input{width:100%}}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 5px}
+textarea,input[type=text],input[type=number],select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
+textarea{min-height:150px;resize:vertical}textarea.sm{min-height:90px}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0}
+.btn{background:var(--accent);color:#fff;border:0;padding:10px 18px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer;margin-top:14px}
+.btn:disabled{opacity:.55;cursor:wait}.btn.ghost{background:var(--accent-soft);color:var(--accent);margin-left:8px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:3px 10px;border-radius:99px;font-size:13px;background:var(--accent-soft);color:var(--accent)}
+.chip.good{background:var(--good-soft);color:var(--good)}.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.gauges{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;margin:6px 0 8px}
+.gauge{text-align:center}.gauge svg{width:130px;height:130px}.gauge .lbl{font-size:13px;color:var(--muted);margin-top:-4px}
+.bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:13px}.bar .n{width:150px;color:var(--muted)}
+.bar .t{flex:1;height:8px;background:var(--line);border-radius:9px;overflow:hidden}.bar .f{height:100%;border-radius:9px;background:var(--accent)}
+.bar .v{width:52px;text-align:right}
+ul.clean{margin:6px 0;padding-left:20px}ul.clean li{margin:4px 0}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.check{padding:8px 12px;border-radius:10px;font-size:13px;background:var(--bad-soft);color:var(--bad)}.check.ok{background:var(--good-soft);color:var(--good)}
+.notice{padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn);margin:10px 0;font-size:13px}
+.ai-badge{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:8px;vertical-align:middle}
+.out{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:10px;font-size:14px}
+pre.out{font:12.5px/1.5 ui-monospace,Consolas,monospace;overflow:auto;max-height:480px}
+.q{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}.q .qt{font-weight:600}
+.hidden{display:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#b42318;color:#fff;padding:11px 18px;border-radius:10px;box-shadow:var(--shadow);max-width:90vw;z-index:9}
+.toast.good{background:#15803d}
+.empty{color:var(--muted);text-align:center;padding:26px 0}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px;margin-right:7px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header><div class="head">
+  <div class="brand"><h1>AI Resume Engine</h1><p>Resume analysis, ATS scoring, interview practice and AI writing tools</p></div>
+  <div class="ctrl">
+    <span id="status" class="pill off">Checking engine…</span>
+    <input id="apikey" type="password" placeholder="Engine API key" autocomplete="off" aria-label="API key">
+    <button class="icon" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</div></header>
+
+<nav id="tabs"></nav>
+<main id="panels"></main>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+  return e;
+}
+const store = { get(k) { try { return sessionStorage.getItem(k) || ""; } catch { return ""; } },
+                set(k, v) { try { sessionStorage.setItem(k, v); } catch {} } };
+
+function toast(msg, good) {
+  const t = h("div", { class: "toast" + (good ? " good" : "") }, msg);
+  document.body.append(t); setTimeout(() => t.remove(), 4500);
+}
+async function api(path, { json, form } = {}) {
+  const key = $("#apikey").value.trim();
+  if (!key) throw new Error("Enter your engine API key (top right) first.");
+  const opt = { method: "POST", headers: { "x-api-key": key } };
+  if (json) { opt.headers["content-type"] = "application/json"; opt.body = JSON.stringify(json); } else opt.body = form;
+  const r = await fetch(path, opt);
+  let d = null; try { d = await r.json(); } catch {}
+  if (!r.ok) throw new Error((d && (d.error || d.detail)) || "Request failed (" + r.status + ")");
+  return d;
+}
+async function run(btn, fn) {
+  const label = btn.textContent; btn.disabled = true; btn.replaceChildren(h("span", { class: "spin" }), "Working…");
+  try { await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; btn.textContent = label; }
+}
+function notice(d) { return d && d.fallback ? h("div", { class: "notice" }, "⚠ " + (d.warning || "Offline engine used.")) : (d && d.input_warning ? h("div", { class: "notice" }, d.input_warning) : null); }
+function aiBadge(d) { return d && d.ai_used ? h("span", { class: "ai-badge" }, "AI") : null; }
+const chips = (arr, cls = "") => h("div", { class: "chips" }, (arr || []).map(x => h("span", { class: "chip " + cls }, x)));
+function field(label, el) { return h("div", {}, h("label", {}, label), el); }
+function gauge(label, val) {
+  const v = Math.max(0, Math.min(100, Number(val) || 0)), r = 42, c = 2 * Math.PI * r;
+  const col = v >= 70 ? "var(--good)" : v >= 50 ? "var(--warn)" : "var(--bad)";
+  const d = h("div", { class: "gauge" });
+  d.innerHTML = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--line)" stroke-width="9"/>
+  <circle cx="50" cy="50" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c * v / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/>
+  <text x="50" y="56" text-anchor="middle" font-size="22" font-weight="700" fill="var(--text)">${Math.round(v)}</text></svg>`;
+  d.append(h("div", { class: "lbl" }, label)); return d;
+}
+function bar(name, val, max) {
+  const pct = max ? (val / max) * 100 : 0;
+  const f = h("div", { class: "f" }); f.style.width = pct + "%";
+  return h("div", { class: "bar" }, h("span", { class: "n" }, name), h("div", { class: "t" }, f), h("span", { class: "v" }, val + "/" + max));
+}
+const pretty = k => k.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
+let sharedResume = "";
+const resumeBox = (id) => { const t = h("textarea", { id, placeholder: "Paste your resume text here…" }); t.value = sharedResume; t.addEventListener("input", () => sharedResume = t.value); return t; };
+
+/* ------------------------------------------------------------------ tabs */
+const TABS = [];
+function tab(id, title, build) { TABS.push({ id, title, build }); }
+
+tab("analyze", "Resume Analyzer", () => {
+  const file = h("input", { type: "file", accept: "application/pdf,.pdf" });
+  const text = resumeBox("an-resume"); const jd = h("textarea", { id: "an-jd", placeholder: "Paste the job description…" });
+  const ai = h("input", { type: "checkbox", id: "an-ai", checked: "checked" });
+  const out = h("div");
+  const btn = h("button", { class: "btn" }, "Analyze match");
+  btn.onclick = () => run(btn, async () => {
+    const fd = new FormData(); fd.append("job_description", jd.value);
+    if (file.files[0]) fd.append("resume_file", file.files[0]); else fd.append("resume_text", text.value);
+    fd.append("use_ai", ai.checked ? "true" : "false");
+    const res = await api("/analyze_resume", { form: fd }); render(res);
+  });
+  function render(res) {
+    const d = res.data; out.replaceChildren();
+    const card = h("div", { class: "card" }, h("h2", {}, "Results", aiBadge(res)));
+    if (res.warning) card.append(h("div", { class: "notice" }, res.warning));
+    card.append(h("div", { class: "gauges" }, gauge("Job match", d.score), gauge("ATS readiness", d.base_score), gauge("Overall", d.overall_score)),
+      h("p", { class: "sub", style: "text-align:center" }, d.feedback));
+    const g = h("div", { class: "grid" });
+    g.append(h("div", {}, h("h3", {}, "Matched skills (" + d.matched_skills.length + ")"), d.matched_skills.length ? chips(d.matched_skills, "good") : h("p", { class: "sub" }, "None found."),
+      h("h3", {}, "Missing skills (" + d.missing_skills.length + ")"), d.missing_skills.length ? chips(d.missing_skills, "bad") : h("p", { class: "sub" }, "Nothing missing 🎉")));
+    const sec = h("div", { class: "checks" }, Object.entries(d.section_analysis).map(([k, v]) => h("div", { class: "check" + (v ? " ok" : "") }, (v ? "✓ " : "✗ ") + pretty(k))));
+    g.append(h("div", {}, h("h3", {}, "Resume sections"), sec, h("h3", {}, "ATS breakdown"), Object.entries(d.breakdown.ats).map(([k, v]) => bar(pretty(k), v.score, v.max))));
+    card.append(g);
+    if (d.ai_suggestions && d.ai_suggestions.length) card.append(h("h3", {}, "AI recommendations"), h("ul", { class: "clean" }, d.ai_suggestions.map(s => h("li", {}, s))));
+    card.append(h("h3", {}, "Action checklist"), h("ul", { class: "clean" }, d.suggestions.map(s => h("li", {}, s))));
+    if (Object.keys(d.skills_by_category).length) {
+      card.append(h("h3", {}, "Your skills by category"));
+      Object.entries(d.skills_by_category).forEach(([c, s]) => card.append(h("div", { style: "margin:6px 0" }, h("strong", {}, c + ": "), s.join(", "))));
+    }
+    out.append(card);
+  }
+  return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Resume ↔ Job match"), h("p", { class: "sub" }, "Upload a PDF or paste text, add the job description, and get a match score, ATS score and fixes."),
+    h("div", { class: "grid" }, h("div", {}, field("Resume PDF", file), field("…or paste resume text", text)), field("Job description", jd)),
+    h("div", { class: "row", style: "margin-top:10px" }, h("label", { style: "margin:0;font-weight:500" }, ai, " Include AI recommendations")), btn), out);
+});
+
+tab("keywords", "Keywords", () => {
+  const jd = h("textarea", { placeholder: "Paste a job description…" }); const out = h("div"); const btn = h("button", { class: "btn" }, "Extract keywords");
+  btn.onclick = () => run(btn, async () => {
+    const d = await api("/extract_keywords", { json: { job_description: jd.value } });
+    out.replaceChildren(h("h3", {}, "Skills detected"), d.skills.length ? chips(d.skills, "good") : h("p", { class: "sub" }, "No known skills detected."),
+      h("h3", {}, "Top keywords"), chips(d.keywords));
+  });
+  return h("div", { class: "card" }, h("h2", {}, "Job keyword extractor"), h("p", { class: "sub" }, "See which skills and phrases a posting emphasises, so you can mirror them in your resume."), field("Job description", jd), btn, out);
+});
+
+tab("cover", "Cover Letter", () => {
+  const r = resumeBox("cl-resume"), jd = h("textarea", { placeholder: "Paste the job description…" }), out = h("div"); const btn = h("button", { class: "btn" }, "Generate cover letter");
+  btn.onclick = () => run(btn, async () => {
+    const d = await api("/generate_cover_letter", { json: { resume_text: r.value, job_description: jd.value } });
+    const copy = h("button", { class: "btn ghost", onclick: () => navigator.clipboard.writeText(d.cover_letter).then(() => toast("Copied", true)) }, "Copy");
+    out.replaceChildren(h("h3", {}, "Your cover letter", aiBadge(d)), notice(d), h("div", { class: "out" }, d.cover_letter), copy);
+  });
+  return h("div", { class: "card" }, h("h2", {}, "Tailored cover letter"), h("div", { class: "grid" }, field("Resume text", r), field("Job description", jd)), btn, out);
+});
+
+tab("interview", "Interview Coach", () => {
+  const jd = h("textarea", { class: "sm", placeholder: "Paste the job description…" }), r = resumeBox("iv-resume"); r.className = "sm";
+  const n = h("input", { type: "number", min: "1", max: "15", value: "5" }); const list = h("div"); const btn = h("button", { class: "btn" }, "Generate questions");
+  btn.onclick = () => run(btn, async () => {
+    const body = { job_description: jd.value, num_questions: Number(n.value) || 5 }; if (r.value.trim()) body.resume_text = r.value;
+    const d = await api("/generate_questions", { json: body });
+    list.replaceChildren(notice(d), ...d.questions.map((q, i) => qCard(q, i)));
+  });
+  function qCard(q, i) {
+    const ans = h("textarea", { class: "sm", placeholder: "Type your answer… (use the STAR method)" }), res = h("div"); const b = h("button", { class: "btn" }, "Get feedback");
+    b.onclick = () => run(b, async () => {
+      const body = { question: q, user_answer: ans.value }; if (r.value.trim()) body.resume_text = r.value;
+      const d = await api("/evaluate_answer", { json: body }); const x = d.data;
+      res.replaceChildren(notice(d), h("div", { class: "gauges" }, gauge("Answer score", x.score)), h("p", {}, x.feedback, aiBadge(d)),
+        x.strengths && x.strengths.length ? h("div", {}, h("h3", {}, "Strengths"), h("ul", { class: "clean" }, x.strengths.map(s => h("li", {}, s)))) : null,
+        x.improvements && x.improvements.length ? h("div", {}, h("h3", {}, "Improve"), h("ul", { class: "clean" }, x.improvements.map(s => h("li", {}, s)))) : null);
+    });
+    return h("div", { class: "q" }, h("div", { class: "qt" }, (i + 1) + ". " + q), ans, b, res);
+  }
+  return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Mock interview"), h("p", { class: "sub" }, "Generate role-specific questions, answer them, and get scored feedback."),
+    h("div", { class: "grid" }, field("Job description", jd), field("Your resume (optional, makes questions personal)", r)), field("Number of questions", n), btn), list);
+});
+
+tab("bullet", "Bullet Enhancer", () => {
+  const t = h("textarea", { class: "sm", placeholder: "e.g. worked on a website for the college fest" }), out = h("div"); const btn = h("button", { class: "btn" }, "Enhance");
+  btn.onclick = () => run(btn, async () => {
+    const d = await api("/enhance_bullet", { json: { bullet_point: t.value } });
+    out.replaceChildren(h("h3", {}, "Improved", aiBadge(d)), notice(d), h("div", { class: "out" }, d.enhanced_bullet));
+  });
+  return h("div", { class: "card" }, h("h2", {}, "Resume bullet enhancer"), h("p", { class: "sub" }, "Turns a weak bullet into an action-led, professional one without inventing facts."), field("Original bullet", t), btn, out);
+});
+
+tab("parse", "Resume Parser", () => {
+  const f = h("input", { type: "file", accept: "application/pdf,.pdf" }); const src = h("select", {}, h("option", { value: "/parse_resume" }, "Resume PDF"), h("option", { value: "/parse_linkedin" }, "LinkedIn export PDF"));
+  const out = h("div"); const btn = h("button", { class: "btn" }, "Parse to JSON");
+  btn.onclick = () => run(btn, async () => {
+    if (!f.files[0]) throw new Error("Choose a PDF first."); const fd = new FormData(); fd.append("file", f.files[0]);
+    const d = await api(src.value, { form: fd }); const x = d.data;
+    out.replaceChildren(notice(d), h("h3", {}, "Detected", aiBadge(d)), chips([x.contact.fullName, x.contact.email, x.contact.phone].filter(Boolean)),
+      h("h3", {}, "Skills (" + x.skills.length + ")"), chips(x.skills, "good"), h("h3", {}, "Full structured data"), h("pre", { class: "out" }, JSON.stringify(x, null, 2)));
+  });
+  return h("div", { class: "card" }, h("h2", {}, "PDF → structured profile"), h("p", { class: "sub" }, "Extract contact info, experience, education, projects and skills as JSON."), field("Source", src), field("PDF file", f), btn, out);
+});
+
+tab("rank", "Global Rank", () => {
+  const r = resumeBox("rk-resume"), out = h("div"); const btn = h("button", { class: "btn" }, "Evaluate profile strength");
+  btn.onclick = () => run(btn, async () => {
+    const d = await api("/evaluate_global_rank", { json: { resume_text: r.value } }); const x = d.data;
+    out.replaceChildren(notice(d), h("div", { class: "gauges" }, gauge("Profile strength", x.rankScore)), h("p", { style: "text-align:center;font-size:18px;font-weight:700" }, x.tier, aiBadge(d)),
+      h("div", { class: "grid" }, [["Years of experience", x.totalYearsExperience], ["Education", x.educationTier], ["Skill rarity (1-10)", x.skillRarity], ["Measurable results", x.impactMetricsCount], ["Project complexity (1-10)", x.projectComplexity]]
+        .map(([k, v]) => h("div", { class: "bar" }, h("span", { class: "n", style: "width:190px" }, k), h("strong", {}, v)))));
+  });
+  return h("div", { class: "card" }, h("h2", {}, "Profile strength"), h("p", { class: "sub" }, "Estimates experience, education, skill rarity and impact to place your profile in a tier."), field("Resume text", r), btn, out);
+});
+
+/* ------------------------------------------------------------------ boot */
+const nav = $("#tabs"), panels = $("#panels"); const built = {};
+function show(id) {
+  for (const t of TABS) {
+    const b = nav.querySelector(`[data-id="${t.id}"]`); b.classList.toggle("active", t.id === id);
+    if (t.id === id && !built[id]) { built[id] = h("section", { id: "p-" + id }, t.build()); panels.append(built[id]); }
+    if (built[t.id]) built[t.id].classList.toggle("hidden", t.id !== id);
+  }
+  store.set("tab", id);
+}
+TABS.forEach(t => nav.append(h("button", { "data-id": t.id, onclick: () => show(t.id) }, t.title)));
+show(TABS.some(t => t.id === store.get("tab")) ? store.get("tab") : TABS[0].id);
+
+const key = $("#apikey"); key.value = store.get("key"); key.addEventListener("input", () => store.set("key", key.value));
+$("#theme").onclick = () => { const r = document.documentElement; const dark = (r.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark"; r.dataset.theme = dark ? "light" : "dark"; };
+fetch("/health").then(r => r.json()).then(d => { const s = $("#status"); s.className = "pill " + (d.ai_configured ? "on" : "off"); s.textContent = d.ai_configured ? "Engine online · AI enabled" : "Engine online · offline mode (no Groq key)"; })
+  .catch(() => { $("#status").textContent = "Engine unreachable"; });
+</script>
+</body>
+</html>
