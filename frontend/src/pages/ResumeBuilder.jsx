@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useResume } from '../context/ResumeContext';
 import { generateAtsPdf } from '../utils/generateAtsPdf';
-import { Download, UploadCloud, PenTool, Linkedin } from 'lucide-react';
+import { downloadDesignedPdf } from '../utils/designedPdf';
+import VersionHistory from '../components/VersionHistory';
+import { Download, UploadCloud, PenTool, Linkedin, History, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -36,7 +38,7 @@ const ContactForm = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-4">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl shadow-sm text-center">
-                <h4 className="text-sm font-bold text-blue-900 mb-2">Save Time with AI Import âœ¨</h4>
+                <h4 className="text-sm font-bold text-blue-900 mb-2">Save Time with AI Import ✨</h4>
                 <p className="text-xs text-blue-700 mb-4 font-medium">Upload your exported LinkedIn PDF profile to instantly fill out your entire resume.</p>
                 <input type="file" id="linkedin-upload" className="hidden" accept="application/pdf" onChange={handleFileChange} />
                 <button
@@ -166,7 +168,7 @@ const ExperienceForm = () => {
                         className="absolute right-3 top-9 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 disabled:text-slate-300 dark:disabled:text-slate-600 font-medium text-xs flex items-center gap-1 transition-colors bg-white dark:bg-slate-800 p-1 rounded-md shadow-sm border border-indigo-100 dark:border-indigo-900/50"
                         title="Rewrite with AI"
                     >
-                        {enhancingBullet ? 'âœ¨ Enhancing...' : 'âœ¨ Rewrite with AI'}
+                        {enhancingBullet ? '✨ Enhancing...' : '✨ Rewrite with AI'}
                     </button>
 
                     <div className="mt-2">
@@ -175,7 +177,7 @@ const ExperienceForm = () => {
                             {['Spearheaded', 'Engineered', 'Optimized', 'Architected', 'Revamped', 'Orchestrated'].map(verb => (
                                 <button
                                     key={verb}
-                                    onClick={() => setNewExp({ ...newExp, description: newExp.description ? newExp.description.trimEnd() + ` \nâ€¢ ${verb} ` : `â€¢ ${verb} ` })}
+                                    onClick={() => setNewExp({ ...newExp, description: newExp.description ? newExp.description.trimEnd() + ` \n• ${verb} ` : `• ${verb} ` })}
                                     className="text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-brand-100 hover:text-brand-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded transition-colors font-semibold"
                                 >
                                     +{verb}
@@ -336,7 +338,7 @@ const EducationSkillsForm = () => {
                             resumeData.skills.map(skill => (
                                 <span key={skill} className="bg-brand-50 border border-brand-200 text-brand-700 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-2 shadow-sm group">
                                     {skill}
-                                    <button type="button" onClick={() => removeSkill(skill)} className="text-brand-400 hover:text-red-500 focus:outline-none transition-colors">Ã—</button>
+                                    <button type="button" onClick={() => removeSkill(skill)} className="text-brand-400 hover:text-red-500 focus:outline-none transition-colors">×</button>
                                 </span>
                             ))
                         )}
@@ -348,7 +350,7 @@ const EducationSkillsForm = () => {
                     <div className="flex justify-between items-start mb-4">
                         <div>
                             <h4 className="text-sm font-bold text-brand-800 mb-2 uppercase tracking-wider flex items-center gap-2">
-                                âœ¨ AI Keyword Optimizer
+                                ✨ AI Keyword Optimizer
                             </h4>
                             <p className="text-xs text-brand-600 font-medium max-w-xs block">Paste a job description below, and our NLP engine will suggest missing keywords to boost your ATS score.</p>
                         </div>
@@ -605,8 +607,8 @@ export const ResumePreview = () => {
                 <h1 className={s.name}>{resumeData.contact.fullName || 'YOUR NAME'}</h1>
                 <div className={s.contact}>
                     {resumeData.contact.email && <span>{resumeData.contact.email}</span>}
-                    {resumeData.contact.phone && <span>â€¢ {resumeData.contact.phone}</span>}
-                    {resumeData.contact.linkedin && <span>â€¢ {resumeData.contact.linkedin}</span>}
+                    {resumeData.contact.phone && <span>• {resumeData.contact.phone}</span>}
+                    {resumeData.contact.linkedin && <span>• {resumeData.contact.linkedin}</span>}
                 </div>
             </header>
 
@@ -625,7 +627,7 @@ export const ResumePreview = () => {
                             <div key={exp.id}>
                                 <div className="flex justify-between items-baseline mb-0.5">
                                     <h3 className={s.roleName}>{exp.role}</h3>
-                                    <span className={s.dates}>{exp.startDate} â€“ {exp.endDate}</span>
+                                    <span className={s.dates}>{exp.startDate} – {exp.endDate}</span>
                                 </div>
                                 <div className={s.company}>{exp.company}</div>
                                 <p className={s.textBlock}>{exp.description}</p>
@@ -672,7 +674,7 @@ export const ResumePreview = () => {
             {resumeData.skills.length > 0 && (
                 <section>
                     <h2 className={s.sectionTitle}>Skills</h2>
-                    <p className={s.skills}>{resumeData.skills.join(' â€¢ ')}</p>
+                    <p className={s.skills}>{resumeData.skills.join(' • ')}</p>
                 </section>
             )}
         </div>
@@ -681,18 +683,41 @@ export const ResumePreview = () => {
 
 const ResumeBuilder = () => {
     const [activeTab, setActiveTab] = useState('contact');
-    const { saveToCloud, isSaving, lastSaved, resumeData, updateTheme, importFromLinkedIn, importPrebuiltResume } = useResume();
+    const { saveToCloud, isSaving, lastSaved, resumeData, updateTheme, importFromLinkedIn, importPrebuiltResume, resumeId, loadFromCloud } = useResume();
     const [uploading, setUploading] = useState(false);
     const [zoom, setZoom] = useState(100);
     const [mobileView, setMobileView] = useState('edit'); // 'edit' or 'preview'
+    const [exportOpen, setExportOpen] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [showVersions, setShowVersions] = useState(false);
 
     const handleDownloadPdf = () => {
+        setExportOpen(false);
         try {
             generateAtsPdf(resumeData);
             toast.success('ATS-friendly resume PDF downloaded!');
         } catch (error) {
             console.error('Failed to generate PDF', error);
             toast.error('Failed to generate PDF');
+        }
+    };
+
+    const handleDownloadDesigned = async () => {
+        setExportOpen(false);
+        const paper = document.getElementById('resume-paper');
+        if (!paper) return toast.error('Open the preview first.');
+        setExporting(true);
+        const t = toast.loading('Rendering your themed PDF...');
+        try {
+            const name = (resumeData.contact?.fullName || 'Resume').replace(/[^a-zA-Z0-9_-]/g, '_');
+            await downloadDesignedPdf(paper, `${name}_${resumeData.theme || 'modern'}.pdf`);
+            toast.success('Themed resume PDF downloaded!');
+        } catch (error) {
+            console.error('Failed to render themed PDF', error);
+            toast.error('Failed to generate the themed PDF');
+        } finally {
+            toast.dismiss(t);
+            setExporting(false);
         }
     };
 
@@ -727,7 +752,7 @@ const ResumeBuilder = () => {
         </button>
     );
 
-    /* â”€â”€â”€ Editor Panel (aside) â”€â”€â”€ */
+    /* ─── Editor Panel (aside) ─── */
     const EditorPanel = () => (
         <aside className={`w-full md:w-[420px] bg-white dark:bg-slate-950 md:border-r border-slate-200 dark:border-slate-800 flex flex-col md:shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-10 md:shrink-0 ${mobileView === 'edit' ? 'flex' : 'hidden md:flex'}`}>
             <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-800">
@@ -781,7 +806,7 @@ const ResumeBuilder = () => {
         </aside>
     );
 
-    /* â”€â”€â”€ Preview Panel â”€â”€â”€ */
+    /* ─── Preview Panel ─── */
     const PreviewPanel = () => (
         <div className={`flex-1 bg-slate-200 dark:bg-slate-800 overflow-y-auto overflow-x-auto flex flex-col items-center p-4 md:p-8 custom-scrollbar ${mobileView === 'preview' ? 'flex' : 'hidden md:flex'}`}>
             {/* Toolbar */}
@@ -792,7 +817,7 @@ const ResumeBuilder = () => {
                         disabled={isSaving}
                         className="bg-slate-800 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-900 transition-all shadow-md active:scale-95 disabled:bg-slate-500 text-sm"
                     >
-                        {isSaving ? 'Saving...' : <><span className="hidden sm:inline">ðŸ’¾ Save to Cloud</span><span className="sm:hidden">ðŸ’¾ Save</span></>}
+                        {isSaving ? 'Saving...' : <><span className="hidden sm:inline">💾 Save to Cloud</span><span className="sm:hidden">💾 Save</span></>}
                     </button>
                     {lastSaved && (
                         <span className="text-[10px] md:text-xs font-semibold text-slate-500 hidden sm:inline">
@@ -801,7 +826,7 @@ const ResumeBuilder = () => {
                     )}
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    {/* Zoom control â€” hidden on mobile */}
+                    {/* Zoom control — hidden on mobile */}
                     <div className="hidden lg:flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-sm mr-2">
                         <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="text-slate-400 hover:text-brand-600 font-bold px-1.5" disabled={zoom <= 50}>-</button>
                         <span className="text-xs font-bold text-slate-600 w-9 text-center">{zoom}%</span>
@@ -826,18 +851,40 @@ const ResumeBuilder = () => {
                         <option value="executive">Executive</option>
                         <option value="startup">Startup</option>
                     </select>
-                    <button onClick={handleDownloadPdf} className="bg-brand-600 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-brand-700 transition-all shadow-md active:scale-95 text-sm whitespace-nowrap">
-                        <Download size={16} />
-                        <span className="hidden sm:inline">Export PDF</span>
+                    <button onClick={() => setShowVersions(true)} title="Version history"
+                        className="bg-white border border-slate-300 text-slate-700 px-3 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:border-brand-400 hover:text-brand-700 transition-all shadow-sm active:scale-95 text-sm whitespace-nowrap">
+                        <History size={16} />
+                        <span className="hidden xl:inline">Versions</span>
                     </button>
+                    <div className="relative">
+                        <button onClick={() => setExportOpen((o) => !o)} disabled={exporting} aria-haspopup="menu" aria-expanded={exportOpen}
+                            className="bg-brand-600 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-brand-700 transition-all shadow-md active:scale-95 text-sm whitespace-nowrap disabled:opacity-70">
+                            <Download size={16} />
+                            <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export PDF'}</span>
+                            <ChevronDown size={14} />
+                        </button>
+                        {exportOpen && (
+                            <div role="menu" className="absolute right-0 mt-2 w-72 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-100 dark:border-slate-700 p-1.5 z-30">
+                                <button role="menuitem" onClick={handleDownloadPdf} className="w-full text-left p-3 rounded-lg hover:bg-brand-50 dark:hover:bg-slate-800">
+                                    <div className="text-sm font-bold text-slate-800 dark:text-slate-100">ATS-friendly PDF <span className="ml-1 text-[10px] uppercase tracking-wider text-emerald-600">Recommended</span></div>
+                                    <div className="text-xs text-slate-500">Clean, selectable text. Upload this one to job portals.</div>
+                                </button>
+                                <button role="menuitem" onClick={handleDownloadDesigned} className="w-full text-left p-3 rounded-lg hover:bg-brand-50 dark:hover:bg-slate-800">
+                                    <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Designed PDF ({resumeData.theme || 'modern'} theme)</div>
+                                    <div className="text-xs text-slate-500">Looks exactly like the preview. Best for emailing or printing.</div>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
             {/* A4 Paper Container with Zoom */}
             <div
                 className="origin-top"
+                data-preview-zoom
                 style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.15s ease-out' }}
             >
-                <div className="w-[210mm] min-h-[297mm] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] bg-white shrink-0 mb-12 ring-1 ring-slate-900/5">
+                <div id="resume-paper" className="w-[210mm] min-h-[297mm] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] bg-white shrink-0 mb-12 ring-1 ring-slate-900/5">
                     <ResumePreview />
                 </div>
             </div>
@@ -850,6 +897,15 @@ const ResumeBuilder = () => {
 
             <EditorPanel />
             <PreviewPanel />
+
+            {showVersions && (
+                <VersionHistory
+                    resumeId={resumeId}
+                    onBeforeSnapshot={saveToCloud}
+                    onRestored={async () => { await loadFromCloud(); toast.success('Version restored'); }}
+                    onClose={() => setShowVersions(false)}
+                />
+            )}
 
             {/* Mobile View Toggle FAB */}
             <button

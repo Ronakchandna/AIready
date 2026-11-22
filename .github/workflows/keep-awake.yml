@@ -1,0 +1,24 @@
+# Render's free services sleep after ~15 minutes without traffic and then need ~50 s to wake up.
+# This pings the backend and AI engine every 10 minutes during the daytime (India time) so the
+# site responds instantly while people are using it.
+#
+# Schedule: 04:00-15:59 UTC = 09:30-21:29 IST (about 12 hours/day).
+# Render's free plan includes 750 instance hours per month; 2 services x 12 h x 31 days = 744 h.
+# Do not widen the window much, or the services may be suspended for the rest of the month.
+# You can also run it by hand: GitHub -> Actions -> Keep awake -> Run workflow.
+name: Keep awake
+
+on:
+  schedule:
+    - cron: "*/10 4-15 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping AI engine
+        run: curl --silent --show-error --max-time 120 --retry 3 --retry-delay 10 https://ai-resume-engine.onrender.com/health
+      - name: Ping backend (also checks the database)
+        run: curl --silent --show-error --max-time 120 --retry 3 --retry-delay 10 https://airesume-backend-xmgp.onrender.com/api/health

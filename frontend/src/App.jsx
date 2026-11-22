@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ResumeProvider } from './context/ResumeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { LayoutDashboard, FileText, CheckSquare, MessageSquare, Activity, PenTool, LogOut, Sun, Moon, TrendingUp, Menu, X, User } from 'lucide-react';
+import { LayoutDashboard, FileText, CheckSquare, MessageSquare, Activity, PenTool, LogOut, Sun, Moon, TrendingUp, Menu, X, User, Sparkles } from 'lucide-react';
 import PageTransition from './components/PageTransition';
 
 
@@ -13,6 +13,7 @@ import ResumeAnalyzer from './pages/ResumeAnalyzer';
 import MockInterview from './pages/MockInterview';
 import Dashboard from './pages/Dashboard';
 import CoverLetter from './pages/CoverLetter';
+import CareerCoach from './pages/CareerCoach';
 import JobTracker from './pages/JobTracker';
 import Leaderboard from './pages/Leaderboard';
 import Profile from './pages/Profile';
@@ -27,6 +28,13 @@ const ProtectedRoute = ({ children }) => {
     return children;
 };
 
+
+const Brand = ({ size }) => (
+    <Link to="/" className="flex items-center gap-2.5">
+        <img src={`${process.env.PUBLIC_URL}/logo.svg`} alt="" className="w-8 h-8 rounded-lg shadow-sm" />
+        <h2 className={`${size} font-black text-brand-600 dark:text-brand-400 tracking-tight`}>AI<span className="text-slate-900 dark:text-white">Ready</span></h2>
+    </Link>
+);
 
 const SidebarItem = ({ to, icon: Icon, label }) => {
     const location = useLocation();
@@ -50,7 +58,7 @@ const Sidebar = () => {
     return (
         <aside className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200/80 dark:border-slate-800 h-screen hidden md:flex flex-col">
             <div className="p-6">
-                <h2 className="text-2xl font-black text-brand-600 dark:text-brand-400 tracking-tight">AI<span className="text-slate-900 dark:text-white">Ready</span></h2>
+                <Brand size="text-2xl" />
             </div>
             <nav className="flex-1 px-4 space-y-2 mt-4">
                 <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" />
@@ -58,6 +66,7 @@ const Sidebar = () => {
                 <SidebarItem to="/analyzer" icon={Activity} label="Resume Analyzer" />
                 <SidebarItem to="/cover-letter" icon={PenTool} label="Cover Letter" />
                 <SidebarItem to="/interview" icon={MessageSquare} label="Mock Interview" />
+                <SidebarItem to="/coach" icon={Sparkles} label="AI Career Coach" />
                 <SidebarItem to="/leaderboard" icon={TrendingUp} label="Leaderboard" />
                 <SidebarItem to="/jobs" icon={CheckSquare} label="Job Tracker" />
             </nav>
@@ -88,7 +97,7 @@ const MobileTopBar = () => {
     const { user } = useAuth();
     return (
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-40">
-            <h2 className="text-xl font-black text-brand-600 dark:text-brand-400 tracking-tight">AI<span className="text-slate-900 dark:text-white">Ready</span></h2>
+            <Brand size="text-xl" />
             <Link to="/profile" className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-sm overflow-hidden border border-brand-200 dark:border-brand-800">
                     {user?.profilePhoto ? (
@@ -117,6 +126,7 @@ const MobileBottomNav = () => {
     ];
 
     const moreTabs = [
+        { to: '/coach', icon: Sparkles, label: 'AI Career Coach' },
         { to: '/cover-letter', icon: PenTool, label: 'Cover Letter' },
         { to: '/leaderboard', icon: TrendingUp, label: 'Leaderboard' },
         { to: '/jobs', icon: CheckSquare, label: 'Job Tracker' },
@@ -274,6 +284,7 @@ const AnimatedRoutes = () => {
                                     <Route path="/builder" element={<PageTransition><ResumeBuilder /></PageTransition>} />
                                     <Route path="/analyzer" element={<PageTransition><ResumeAnalyzer /></PageTransition>} />
                                     <Route path="/cover-letter" element={<PageTransition><CoverLetter /></PageTransition>} />
+                                    <Route path="/coach" element={<PageTransition><CareerCoach /></PageTransition>} />
                                     <Route path="/interview" element={<PageTransition><MockInterview /></PageTransition>} />
                                     <Route path="/leaderboard" element={<PageTransition><Leaderboard /></PageTransition>} />
                                     <Route path="/jobs" element={<PageTransition><JobTracker /></PageTransition>} />

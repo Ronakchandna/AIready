@@ -87,6 +87,35 @@ def test_ssrf_url_is_blocked_but_request_succeeds(client, auth):
     assert "Resume URL ignored" in r.json()["input_warning"]
 
 
+def test_career_chat_fallback_and_validation(client, auth):
+    msgs = [{"role": "user", "content": "How do I negotiate my salary offer?"}]
+    r = client.post("/career_chat", json={"messages": msgs}, headers=auth).json()
+    assert r["success"] and r["fallback"] is True and "negotiat" in r["reply"].lower()
+
+    # last message must be from the user; roles are restricted; empty list rejected
+    bad = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    assert client.post("/career_chat", json={"messages": bad}, headers=auth).status_code == 422
+    assert client.post("/career_chat", json={"messages": [{"role": "system", "content": "x"}]}, headers=auth).status_code == 422
+    assert client.post("/career_chat", json={"messages": []}, headers=auth).status_code == 422
+    assert client.post("/career_chat", json={"messages": msgs}).status_code == 401
+
+
+def test_career_chat_uses_history_and_resume(client, auth, monkeypatch):
+    seen = {}
+
+    def fake_chat(system, history, **kw):
+        seen["system"], seen["history"] = system, history
+        return "Focus on Kubernetes next."
+
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    msgs = [{"role": "user", "content": "What should I learn?"}, {"role": "assistant", "content": "What role?"},
+            {"role": "user", "content": "DevOps"}]
+    r = client.post("/career_chat", json={"messages": msgs, "resume_text": RESUME}, headers=auth).json()
+    assert r["ai_used"] is True and r["reply"] == "Focus on Kubernetes next."
+    assert "<resume>" in seen["system"] and "Jane Roe" in seen["system"]
+    assert [m["role"] for m in seen["history"]] == ["user", "assistant", "user"]
+
+
 def test_ai_insights_flag_without_llm(client, auth):
     r = client.post("/analyze_resume", data={"job_description": JD, "resume_text": RESUME, "use_ai": "true"}, headers=auth).json()
     assert r["ai_used"] is False and r["data"]["ai_suggestions"] is None

@@ -33,6 +33,7 @@ const jsonRoutes = [
     ['/generate-cover-letter', '/generate_cover_letter', 'AI Cover Letter Error'],
     ['/extract-keywords', '/extract_keywords', 'AI Extract Keywords Error'],
     ['/evaluate-global-rank', '/evaluate_global_rank', 'AI Evaluate Global Rank Error'],
+    ['/career-chat', '/career_chat', 'AI Career Chat Error'],
 ];
 
 for (const [path, endpoint, label] of jsonRoutes) {

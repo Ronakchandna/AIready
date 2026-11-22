@@ -70,13 +70,15 @@ Most large employers screen resumes with **Applicant Tracking Systems (ATS)** be
 
 **AIReady** is a full-stack web platform that brings these tasks together. It is built as a monorepo of three services:
 
-1. **Frontend** — a React 19 single-page application (React Router 7, Tailwind CSS, Framer Motion, Recharts, jsPDF) with a live resume builder (10 preview themes, zoom, ATS-safe PDF export), resume analyzer, voice-enabled mock interview, cover letter generator, Kanban job tracker, dashboard and leaderboard.
+1. **Frontend** — a React 19 single-page application (React Router 7, Tailwind CSS, Framer Motion, Recharts, jsPDF) with a live resume builder (10 preview themes, zoom, ATS-safe and themed PDF export, version history with score trend), resume analyzer, voice-enabled mock interview, AI career coach chat, cover letter generator, Kanban job tracker, dashboard, leaderboard and a one-click demo account.
 2. **Backend** — a Node.js 22 / Express 5 REST API with JWT authentication, bcrypt password hashing, rate limiting, CORS allow-listing, PostgreSQL storage (hosted on Supabase) including uploaded resume PDFs, and a gateway to the AI engine with automatic retry while the engine wakes up.
 3. **AI engine** — a Python 3.12 FastAPI service combining **classical NLP** (spaCy noun-chunk extraction, a 102-skill / 229-alias skill taxonomy, scikit-learn n-gram cosine similarity, a rule-based ATS rubric) with a **large language model** (Groq, `openai/gpt-oss-120b`) for resume parsing, bullet rewriting, interview questions, answer evaluation and cover letters. Every LLM feature has a rule-based **offline fallback**.
 
 The resume analyzer produces a job-match score (weighted skill coverage, phrase coverage and text similarity) and a separate 100-point ATS structure score with a per-factor breakdown and actionable suggestions. A deterministic 1000-point Global Rank places users into Bronze–Diamond tiers.
 
-The system is deployed on free cloud tiers (Vercel, Render, Supabase). In end-to-end tests against the live deployment, **19 of 20 feature checks passed** — the remaining one, password-reset email, requires an email provider key. Typical AI responses arrive in **0.6–2.5 seconds**. Automated test suites (12 backend API tests, 23 AI-engine tests) all pass.
+Scanned (image-only) resume PDFs are read with Tesseract OCR, and an AI career coach answers open career questions using the user's resume as context.
+
+The system is deployed on free cloud tiers (Vercel, Render, Supabase) with continuous integration on GitHub Actions. In end-to-end tests against the live deployment, **19 of 20 feature checks passed** — the remaining one, password-reset email, requires an email provider key. Typical AI responses arrive in **0.6–2.5 seconds**. Automated test suites (14 backend API tests, 29 AI-engine tests, 7 frontend tests) all pass.
 
 **Keywords:** Applicant Tracking System, Natural Language Processing, Large Language Models, Resume Parsing, Cosine Similarity, FastAPI, React, PostgreSQL.
 
@@ -162,7 +164,7 @@ Recent large language models (LLMs) can read unstructured text, rewrite content 
 
 **In scope:** English-language resumes and job descriptions; PDF resume upload (up to 5 MB / 30 pages); web browsers on desktop and mobile; single-user accounts.
 
-**Out of scope:** scanned (image-only) PDFs requiring OCR, recruiter/employer accounts, integration with job boards, and paid features.
+**Out of scope:** recruiter/employer accounts, integration with job boards, and paid features.
 
 ## 1.4 Report Organisation
 
@@ -474,6 +476,32 @@ The job tracker is a Kanban board with five columns (saved, applied, interviewin
 
 On free hosting the backend and AI engine sleep after ~15 minutes without traffic. The backend therefore (a) pings the engine's `/health` as soon as it starts, and (b) retries AI calls that fail with 502/503/504 (the responses the platform gives while a service wakes) for up to 75 seconds with increasing delays. Without this, the first AI request after idle time failed; with it, the request simply takes longer.
 
+In addition, a scheduled **GitHub Action** (`keep-awake.yml`) pings both services every 10 minutes between 09:30 and 21:30 IST. The window is chosen so that two services stay within Render's 750 free instance-hours per month (2 × 12 h × 31 days = 744 h).
+
+## 4.14 AI Career Coach
+
+A chat page where users ask open career questions. The engine endpoint `/career_chat` receives the conversation (up to 30 messages; the last must be from the user) and, optionally, the user's resume as plain text built from the Resume Builder. A system prompt defines the coach's role and scope (career topics only, concrete and concise advice, never inventing achievements), and the resume is passed in a fenced block so it is treated as data. The last 12 turns are sent to the LLM for context. Offline fallback: topic detection (resume/ATS, interviews, skills, salary, LinkedIn, cover letters) with practical prepared answers, clearly labelled as offline in the UI. The conversation is kept in the browser's session storage only.
+
+## 4.15 Resume Version History
+
+Users can save named snapshots of their resume (`resume_versions` table). Each snapshot stores the full content and the match score from the latest analysis, so the version panel shows a **score trend chart** (e.g. 54 → 68 → 82) and the skill count per version. Restoring a version first saves the current state as a "Before restore" version, so every restore can be undone. All version routes check that the resume belongs to the logged-in user.
+
+## 4.16 Themed ("Designed") PDF Export
+
+Besides the ATS-safe PDF, users can download the resume exactly as it looks in the chosen preview theme. The preview's A4 element is rendered with `html2canvas` at 2× resolution (the zoom transform is removed in the rendered clone), sliced into A4 pages and placed into a PDF with jsPDF. Because this PDF is an image, the UI recommends the ATS version for job portals and the designed version for emailing or printing.
+
+## 4.17 OCR for Scanned PDFs
+
+If a PDF's text layer contains fewer than 50 characters (an image-only scan), the engine runs **Tesseract OCR** through PyMuPDF (`get_textpage_ocr`, 200 DPI, English, up to 5 pages). Tesseract is installed in the engine's Docker image; `/health` reports `ocr_ready`. Text-based PDFs never pass through OCR, so normal uploads stay fast. If OCR is unavailable the user gets a clear message instead of an empty result.
+
+## 4.18 Demo Mode
+
+To make the platform easy to evaluate, the login page has a **"Try the demo"** button (`POST /api/auth/demo`). It signs the visitor into a shared demo account and **resets its sample data on every demo login**: a complete resume, three resume versions showing improvement, six job applications across all Kanban columns, and three interviews spread over the last week (so the dashboard chart is populated). Twelve sample users with realistic scores fill the leaderboard; they are created automatically at server start. Demo accounts get random passwords, so nobody can sign in to them with a password, and demo mode can be switched off with `DEMO_MODE=false`.
+
+## 4.19 Branding and Text Encoding
+
+The application has its own logo (SVG, rendered to PNG app icons and a multi-size favicon), a web-app manifest and Open Graph tags for link previews. During this work, several garbled characters in the Resume Builder (e.g. `â€¢` instead of `•`), caused by a file once saved with the wrong encoding, were repaired.
+
 ---
 
 # CHAPTER 5 — TESTING, RESULTS AND EVALUATION
@@ -490,12 +518,15 @@ On free hosting the backend and AI engine sleep after ~15 minutes without traffi
 
 | Suite | Tool | Tests | Result |
 |---|---|---|---|
-| Backend API (end-to-end on an in-memory PostgreSQL via PGlite) | `node --test` | 12 | **All pass** |
+| Backend API (end-to-end on an in-memory PostgreSQL via PGlite) | `node --test` | 14 | **All pass** |
 | Backend route wiring | `test_routes.js` | — | **Pass** |
-| AI engine (NLP, scoring, parsing, API auth, validation, rate limiting, SSRF guard, offline fallbacks) | pytest | 23 | **All pass** |
+| AI engine (NLP, scoring, parsing, API auth, validation, rate limiting, SSRF guard, career chat, OCR, offline fallbacks) | pytest | 29 | **All pass** (OCR test runs where Tesseract is installed) |
+| Frontend (login and demo flow, PDF generator and text sanitiser) | Jest + Testing Library | 7 | **All pass** |
 | Frontend production build (lint warnings treated as errors) | react-scripts | — | **Pass** |
 
-Backend tests cover: health check; registration, duplicate and validation errors, login (including case-insensitive email and rejection of injection-style payloads); protected routes; profile update and password change; PDF upload, download and deletion; resume CRUD and owner isolation; job tracker CRUD, validation, ownership and mass-assignment protection; interviews, analysis and dashboard statistics; leaderboard privacy and filtering; public profile privacy; password-reset validation; unknown routes and malformed JSON. Migrations are verified to be idempotent.
+All suites run automatically on every push through **GitHub Actions** (`.github/workflows/ci.yml`), with Tesseract installed so the OCR test also runs.
+
+Backend tests cover: health check; demo login (filled account, reset on every demo login, password login impossible, leaderboard order and tiers); resume version history (save, list, restore with undo point, delete, ownership); registration, duplicate and validation errors, login (including case-insensitive email and rejection of injection-style payloads); protected routes; profile update and password change; PDF upload, download and deletion; resume CRUD and owner isolation; job tracker CRUD, validation, ownership and mass-assignment protection; interviews, analysis and dashboard statistics; leaderboard privacy and filtering; public profile privacy; password-reset validation; unknown routes and malformed JSON. Migrations are verified to be idempotent.
 
 ## 5.3 Live End-to-End Test
 
@@ -589,17 +620,18 @@ AIReady delivers a complete, deployed career-preparation platform: resume buildi
 
 ## 7.2 Limitations
 
-1. **Cold starts:** free hosting sleeps when idle; the first request can take ~50 s.
+1. **Cold starts:** free hosting sleeps when idle; outside the keep-awake window the first request can take ~50 s.
 2. **Email:** password-reset emails require an email-provider key (e.g. Brevo), not yet configured in production.
-3. **Scanned PDFs:** image-only resumes are not supported (no OCR).
+3. **OCR quality:** scanned resumes are read with Tesseract (English, first 5 pages); low-quality scans or unusual layouts may be read imperfectly.
 4. **Language:** English only; the skill taxonomy focuses on technology roles.
 5. **LLM variability:** AI outputs can vary between runs; scores that matter (rank, ATS) are therefore computed deterministically.
-6. **Single PDF format:** the 10 themes affect the on-screen preview; the downloaded PDF always uses the ATS-safe layout by design.
-7. **Token storage:** the JWT is stored in `localStorage`; an HttpOnly cookie would be more resistant to XSS.
+6. **Designed PDF is an image:** the themed PDF has no selectable text, so the ATS-safe PDF remains the one to upload to job portals.
+7. **Shared demo account:** simultaneous demo visitors share one account (it is reset on each demo login).
+8. **Token storage:** the JWT is stored in `localStorage`; an HttpOnly cookie would be more resistant to XSS.
 
 ## 7.3 Future Scope
 
-- OCR for scanned resumes (e.g. Tesseract) and DOCX upload/export.
+- DOCX upload/export and multilingual OCR.
 - Configure transactional email in production; email verification at sign-up.
 - Larger, multi-domain skill taxonomy (healthcare, finance, design) and multilingual support.
 - Semantic matching with sentence embeddings in addition to keyword coverage.
@@ -683,6 +715,7 @@ Base URL: `/api`. 🔒 = requires `Authorization: Bearer <JWT>`.
 |---|---|---|
 | POST | `/auth/register` | `{name, email, password}` → user + token |
 | POST | `/auth/login` | `{email, password}` → user + token |
+| POST | `/auth/demo` | Sign in to the demo account (its data is reset) → user + token |
 | POST | `/auth/forgot-password` | `{email}` → emails a 6-digit OTP |
 | POST | `/auth/reset-password` | `{email, otp, newPassword}` |
 | GET 🔒 | `/auth/profile` | Current user's profile |
@@ -699,6 +732,10 @@ Base URL: `/api`. 🔒 = requires `Authorization: Bearer <JWT>`.
 | GET 🔒 | `/resume/all` | All resumes |
 | POST 🔒 | `/resume` | Create, or update when `id` is given: `{id?, title?, content}` |
 | DELETE 🔒 | `/resume/:id` | Delete a resume |
+| GET 🔒 | `/resume/:id/versions` | Saved versions, newest first (label, date, score, skill count, content) |
+| POST 🔒 | `/resume/:id/versions` | Save the current resume as a version `{label?}` |
+| POST 🔒 | `/resume/:id/versions/:versionId/restore` | Restore a version (current state is saved first) |
+| DELETE 🔒 | `/resume/:id/versions/:versionId` | Delete a version |
 | GET 🔒 | `/jobs` | List applications |
 | POST 🔒 | `/jobs` | `{company, role, status?, url?, location?, notes?}` |
 | PUT 🔒 | `/jobs/:id` | Update an application |
@@ -723,6 +760,7 @@ Base URL: `/api`. 🔒 = requires `Authorization: Bearer <JWT>`.
 | POST 🔒 | `/ai/generate-questions` | `/generate_questions` | `{job_description, num_questions?, resume_text?, resume_url?}` |
 | POST 🔒 | `/ai/evaluate-answer` | `/evaluate_answer` | `{question, user_answer, expected_keywords?, resume_text?, resume_url?}` |
 | POST 🔒 | `/ai/generate-cover-letter` | `/generate_cover_letter` | `{resume_text, job_description}` |
+| POST 🔒 | `/ai/career-chat` | `/career_chat` | `{messages: [{role, content}], resume_text?}` |
 | — | (used by `/user/rank`) | `/evaluate_global_rank` | `{resume_text}` |
 
 The engine also exposes `GET /health` (status, model, whether AI and NLP are ready) and `GET /ui` (test dashboard). All engine routes except these require the `x-api-key` header.
@@ -795,7 +833,18 @@ CREATE TABLE files (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE resume_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  resume_id uuid NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label text NOT NULL DEFAULT '',
+  content jsonb NOT NULL,                       -- full snapshot of resumes.content
+  score integer,                                -- match score at snapshot time
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX resume_versions_idx ON resume_versions (resume_id, created_at DESC);
 CREATE INDEX resumes_user_idx    ON resumes (user_id, updated_at DESC);
 CREATE INDEX jobs_user_idx       ON job_applications (user_id, created_at DESC);
 CREATE INDEX interviews_user_idx ON interviews (user_id, updated_at DESC);

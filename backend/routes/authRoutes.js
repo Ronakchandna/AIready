@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser, getUserProfile, updateUserProfile, uploadProfileResume, deleteProfileResume, forgotPassword, resetPassword } = require('../controllers/authController');
+const { registerUser, loginUser, demoLogin,getUserProfile, updateUserProfile, uploadProfileResume, deleteProfileResume, forgotPassword, resetPassword } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const { upload } = require('../utils/upload');
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/demo', demoLogin);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.route('/profile')

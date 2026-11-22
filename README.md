@@ -1,12 +1,15 @@
 # AIReady — AI Resume & Career Platform
 
+[![CI](https://github.com/Ronakchandna/AIready/actions/workflows/ci.yml/badge.svg)](https://github.com/Ronakchandna/AIready/actions/workflows/ci.yml)
+
 AIReady helps job seekers **build ATS-friendly resumes, check them against a job description, practise
 interviews with AI feedback, write cover letters and track job applications**, all in one web app.
 
-**Live demo:** https://aiready-sigma.vercel.app
+**Live demo:** https://aiready-sigma.vercel.app — click **"Try the demo"** on the login page to explore a
+ready-made account (no sign-up).
 
-> The backend and AI engine run on Render's free plan. If nobody has used the site for ~15 minutes,
-> the first request can take up to ~50 seconds while they wake up.
+> The backend and AI engine run on Render's free plan. A scheduled GitHub Action keeps them awake from
+> 9:30 to 21:30 IST; outside those hours the first request can take up to ~50 seconds.
 
 ---
 
@@ -14,17 +17,19 @@ interviews with AI feedback, write cover letters and track job applications**, a
 
 | Feature | What it does |
 |---|---|
-| **Resume Builder** | Form-based editor with a live preview in 10 themes and zoom. One-click **ATS-safe PDF download**. |
-| **AI import** | Upload an existing resume PDF or a LinkedIn profile PDF; the AI fills in the whole builder. |
+| **Resume Builder** | Form-based editor with a live preview in 10 themes and zoom. Download an **ATS-safe PDF** (selectable text) or a **designed PDF** in the chosen theme. |
+| **Version history** | Save snapshots of your resume, see your match score improve over time, restore any version. |
+| **AI import** | Upload an existing resume PDF or a LinkedIn profile PDF; the AI fills in the whole builder. **Scanned PDFs are read with OCR.** |
 | **AI bullet enhancer** | Rewrites a weak bullet point into a strong, action-verb, impact-focused one. |
 | **Skill suggestions** | Paste a job description; NLP extracts the skills it wants that your resume is missing. |
 | **Resume Analyzer** | Upload a PDF + job description → match score, ATS score with breakdown, matched/missing skills, section check and AI suggestions. |
 | **Mock Interview** | 5 questions tailored to the job (and your resume), voice input/output, 90-second stress timer, AI scoring of each answer, PDF report. |
+| **AI Career Coach** | Chat with an AI coach that knows your resume: what to learn, interview prep, referrals, offers. |
 | **Cover Letter** | Personalised cover letter from your resume + job description; copy or download as PDF. |
 | **Job Tracker** | Kanban board (saved → applied → interviewing → offer / rejected) with drag and drop. |
 | **Dashboard** | Interview count, average score, ATS hits, 7-day activity chart and recent activity. |
 | **Global Rank & Leaderboard** | 0–1000 score and tier (Bronze → Diamond) from your resume; opt-in public leaderboard and profile page. |
-| **Accounts** | Register/login (JWT), profile, stored resume PDFs, dark mode. |
+| **Accounts** | Register/login (JWT), one-click demo account, profile, stored resume PDFs, dark mode. |
 
 ## Architecture
 
@@ -39,7 +44,7 @@ Browser ──► frontend (React, Vercel) ──► backend (Node/Express, Rend
 |---|---|---|
 | [`frontend/`](frontend) | React 19, React Router 7, Tailwind CSS, Framer Motion, Recharts, jsPDF | The web app |
 | [`backend/`](backend) | Node.js 22, Express 5, PostgreSQL (`pg`), JWT, bcrypt, Multer, Helmet | Auth, data, file storage, gateway to the AI engine |
-| [`ai-engine/`](ai-engine) | Python 3.12, FastAPI, spaCy, scikit-learn, PyMuPDF, Groq (`openai/gpt-oss-120b`) | NLP, ATS scoring, PDF parsing, LLM features |
+| [`ai-engine/`](ai-engine) | Python 3.12, FastAPI, spaCy, scikit-learn, PyMuPDF + Tesseract OCR, Groq (`openai/gpt-oss-120b`) | NLP, ATS scoring, PDF parsing, LLM features |
 
 Every AI feature has an **offline fallback**: if the LLM is unavailable, the engine answers with
 rule-based NLP results and marks them `"fallback": true`.
@@ -60,7 +65,7 @@ uvicorn main:app --reload
 cd backend
 npm install
 copy .env.example .env                               # set DATABASE_URL, JWT_SECRET, AI_API_KEY (= engine API_KEY)
-npm start                                            # creates the database tables automatically
+npm start                                            # creates the tables + demo leaderboard automatically
 
 # 3. Frontend  (http://localhost:3000)
 cd frontend
@@ -72,10 +77,14 @@ npm start
 ## Tests
 
 ```bash
-cd backend   && npm test          # 12 API tests on an in-memory PostgreSQL (PGlite)
-cd ai-engine && pytest            # 23 tests: NLP, scoring, API, security, offline fallbacks
-cd frontend  && npm run build     # production build (lint errors fail the build)
+cd backend   && npm test                      # 14 API tests on an in-memory PostgreSQL (PGlite)
+cd ai-engine && pytest                        # 29 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
+cd frontend  && npm test -- --watchAll=false  # 7 tests: login + demo flow, PDF generator
+cd frontend  && npm run build                 # production build (lint errors fail the build)
 ```
+
+GitHub Actions runs all of these on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+[`keep-awake.yml`](.github/workflows/keep-awake.yml) pings the free Render services every 10 minutes during the day.
 
 ## Deployment
 

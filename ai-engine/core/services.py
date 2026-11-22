@@ -296,3 +296,64 @@ def ai_insights(resume_text: str, jd_text: str, analysis: Dict[str, Any]) -> Opt
         return llm.complete_json(prompt, validate, temperature=0.4, max_tokens=700)
     except llm.LLMUnavailable:
         return None
+
+
+# --------------------------------------------------------------------------- career coach chat
+_COACH_SYSTEM = (
+    "You are AIReady Coach, a friendly, practical career coach for students and early-career job seekers "
+    "(many in India). Help with resumes, ATS optimisation, skills to learn, interview preparation, job search "
+    "strategy, LinkedIn, internships, offers and salary negotiation. Be specific and actionable: short "
+    "paragraphs or bullet points, concrete examples, under about 220 words unless the user asks for more. "
+    "When the user's resume is provided in <resume>, refer to their real experience and skills and never invent "
+    "achievements. If a question is unrelated to careers or professional growth, briefly say you can only help "
+    "with career topics. Use plain text with simple '-' bullets (no markdown tables or headings)."
+)
+
+# Offline fallback: practical answers for the most common topics
+_COACH_TOPICS = [
+    (r"\b(ats|keyword|resume|cv|bullet|format)\b",
+     "Resume tips that work with ATS:\n- Use a single-column layout with standard headings (Summary, Experience, "
+     "Projects, Education, Skills).\n- Start each bullet with an action verb and add a number: 'Reduced load time by "
+     "40%'.\n- Mirror the exact skill names from the job description (only those you really have).\n- Keep it to one "
+     "page early in your career and export as a text-based PDF.\nTry the Resume Analyzer to see your match score."),
+    (r"\b(interview|hr round|behaviou?ral|tell me about yourself|star)\b",
+     "Interview preparation:\n- Answer behavioural questions with STAR: Situation, Task, Action, Result (with a "
+     "number).\n- Prepare 5 stories: a project you're proud of, a conflict, a failure, leadership, a tight deadline.\n"
+     "- For technical rounds, practise explaining your projects' design decisions and trade-offs.\n- Use the Mock "
+     "Interview page to practise with a timer and get feedback."),
+    (r"\b(skill|learn|course|roadmap|certif)\w*",
+     "Choosing skills to learn:\n- Collect 10 job descriptions for your target role and note the skills that repeat.\n"
+     "- Learn the top 2-3 gaps by building one small project with each, and put it on GitHub.\n- Add the project to "
+     "your resume with what you built and the result.\nThe Resume Builder's 'skill suggestions' can extract skills "
+     "from a job description for you."),
+    (r"\b(salary|ctc|negotiat|offer|package)\w*",
+     "Negotiating an offer:\n- Research the range for the role and city (Glassdoor, AmbitionBox, Levels.fyi).\n- Let "
+     "them share a number first if you can; then ask for a specific figure near the top of the range with reasons "
+     "(skills, competing offers).\n- Negotiate the whole package: joining bonus, notice-period buyout, learning budget."),
+    (r"\b(linkedin|network|referral)\w*",
+     "Using LinkedIn and referrals:\n- Headline = target role + top skills, e.g. 'Full-Stack Developer | React, "
+     "Node.js'.\n- Add projects to Featured and keep your About section to 3-4 lines.\n- Ask for referrals with a short, "
+     "specific message: role link, why you fit (2 points), and your resume."),
+    (r"\b(cover letter)\b",
+     "Cover letters: 3 short paragraphs - why this company and role, 2 achievements that match the job, and a "
+     "closing line. Use the Cover Letter page to generate a tailored draft from your resume."),
+]
+
+
+def _coach_fallback(question: str) -> str:
+    low = question.lower()
+    for pattern, answer in _COACH_TOPICS:
+        if re.search(pattern, low):
+            return answer
+    return ("I can help with resumes and ATS, interview preparation, which skills to learn, LinkedIn and "
+            "referrals, cover letters and salary negotiation. Ask me about any of these!")
+
+
+def career_chat(history: List[Dict[str, str]], resume_text: Optional[str]) -> Dict[str, Any]:
+    system = _COACH_SYSTEM
+    if resume_text:
+        system += "\n\nThe user's current resume:\n" + llm.fence("resume", resume_text[:12000])
+    try:
+        return _ai({"reply": llm.chat(system, history[-12:], temperature=0.5, max_tokens=900)})
+    except llm.LLMUnavailable:
+        return _offline({"reply": _coach_fallback(history[-1]["content"])})

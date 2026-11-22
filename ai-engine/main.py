@@ -10,7 +10,7 @@ import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict, List, Literal, Optional
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -25,7 +25,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import config
 from core import analyzer, llm, services
 from core.skills import extract_skills
-from utils.pdf_extractor import PDFExtractionError, extract_text_from_pdf, is_pdf
+from utils.pdf_extractor import PDFExtractionError, extract_text_from_pdf, is_pdf, ocr_available
 from utils.safe_fetch import UnsafeURL, fetch_pdf
 
 log = logging.getLogger("api")
@@ -179,6 +179,23 @@ class CoverLetterRequest(_Base):
     job_description: str = Field(..., min_length=1, max_length=config.MAX_JD_CHARS)
 
 
+class ChatMessage(_Base):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class CareerChatRequest(_Base):
+    messages: List[ChatMessage] = Field(..., min_length=1, max_length=30)
+    resume_text: Optional[str] = Field(None, max_length=config.MAX_RESUME_CHARS)
+
+    @field_validator("messages")
+    @classmethod
+    def _last_is_user(cls, v):
+        if v[-1].role != "user":
+            raise ValueError("the last message must be from the user")
+        return v
+
+
 # --------------------------------------------------------------------------- helpers
 async def read_pdf_upload(file: UploadFile) -> str:
     if not (file.filename or "").lower().endswith(".pdf"):
@@ -193,7 +210,9 @@ async def read_pdf_upload(file: UploadFile) -> str:
     except PDFExtractionError as exc:
         raise HTTPException(400, str(exc))
     if not text.strip():
-        raise HTTPException(400, "No text found in the PDF (scanned image-only PDFs are not supported).")
+        raise HTTPException(400, "No readable text found in the PDF. If it is a scan, upload a clearer copy "
+                                 "or a text-based PDF." if ocr_available() else
+                                 "No text found in the PDF (scanned image-only PDFs need OCR, which is not installed).")
     return text[: config.MAX_RESUME_CHARS]
 
 
@@ -229,7 +248,7 @@ def root():
 def health():
     return {"status": "ok", "version": config.APP_VERSION, "ai_configured": llm.is_configured(),
             "model": config.GROQ_MODEL if llm.is_configured() else None,
-            "nlp_ready": analyzer.get_nlp() is not None}
+            "nlp_ready": analyzer.get_nlp() is not None, "ocr_ready": ocr_available()}
 
 
 @app.get("/ui", include_in_schema=False)
@@ -303,6 +322,12 @@ def evaluate_answer(request: AnswerEvaluationRequest):
 @router.post("/generate_cover_letter")
 def generate_cover_letter(request: CoverLetterRequest):
     return ok(services.generate_cover_letter(request.resume_text, request.job_description))
+
+
+@router.post("/career_chat")
+def career_chat(request: CareerChatRequest):
+    history = [m.model_dump() for m in request.messages]
+    return ok(services.career_chat(history, request.resume_text))
 
 
 @router.post("/parse_resume")

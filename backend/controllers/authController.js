@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const File = require('../models/File');
+const demo = require('../demo');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -69,6 +70,20 @@ const registerUser = async (req, res) => {
 // @desc    Authenticate a user
 // @route   POST /api/auth/login
 // @access  Public
+// @desc    Sign in to the shared demo account (its sample data is reset on every demo login)
+// @route   POST /api/auth/demo
+// @access  Public (disabled with DEMO_MODE=false)
+const demoLogin = async (req, res) => {
+    if (!demo.enabled()) return res.status(404).json({ message: 'Demo mode is disabled' });
+    try {
+        const user = await demo.resetDemoAccount();
+        res.json(profileResponse(user));
+    } catch (error) {
+        console.error('Demo Login Error:', error.message);
+        res.status(500).json({ message: 'Could not start the demo right now' });
+    }
+};
+
 const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
@@ -283,6 +298,7 @@ const resetPassword = async (req, res) => {
 module.exports = {
     registerUser,
     loginUser,
+    demoLogin,
     getUserProfile,
     updateUserProfile,
     uploadProfileResume,

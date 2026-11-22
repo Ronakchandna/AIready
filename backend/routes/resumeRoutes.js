@@ -71,4 +71,48 @@ router.delete('/:id', protect, async (req, res) => {
     }
 });
 
+// ---------------------------------------------------------------- version history
+
+// @route   GET /api/resume/:id/versions   - saved snapshots, newest first
+router.get('/:id/versions', protect, async (req, res, next) => {
+    try {
+        const resume = await Resume.findOwned(req.params.id, req.user._id);
+        if (!resume) return res.status(404).json({ message: 'No resume found' });
+        res.json({ success: true, data: await Resume.listVersions(resume._id, req.user._id) });
+    } catch (error) { next(error); }
+});
+
+// @route   POST /api/resume/:id/versions  { label }  - snapshot the current resume
+router.post('/:id/versions', protect, async (req, res, next) => {
+    try {
+        const resume = await Resume.findOwned(req.params.id, req.user._id);
+        if (!resume) return res.status(404).json({ message: 'No resume found' });
+        const label = typeof req.body.label === 'string' && req.body.label.trim()
+            ? req.body.label : `Version ${new Date().toLocaleDateString('en-IN')}`;
+        res.status(201).json({ success: true, data: await Resume.saveVersion(resume, label) });
+    } catch (error) { next(error); }
+});
+
+// @route   POST /api/resume/:id/versions/:versionId/restore  - make a snapshot the current content
+router.post('/:id/versions/:versionId/restore', protect, async (req, res, next) => {
+    try {
+        const resume = await Resume.findOwned(req.params.id, req.user._id);
+        const version = resume && await Resume.findVersion(req.params.versionId, resume._id, req.user._id);
+        if (!version) return res.status(404).json({ message: 'Version not found' });
+        // keep the current state too, so a restore can be undone
+        await Resume.saveVersion(resume, 'Before restore');
+        const updated = await Resume.update(resume._id, req.user._id, { content: version.content });
+        res.json({ success: true, data: updated });
+    } catch (error) { next(error); }
+});
+
+// @route   DELETE /api/resume/:id/versions/:versionId
+router.delete('/:id/versions/:versionId', protect, async (req, res, next) => {
+    try {
+        const ok = await Resume.deleteVersion(req.params.versionId, req.params.id, req.user._id);
+        if (!ok) return res.status(404).json({ message: 'Version not found' });
+        res.json({ success: true });
+    } catch (error) { next(error); }
+});
+
 module.exports = router;

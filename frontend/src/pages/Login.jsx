@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, X, KeyRound, CheckCircle2, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, X, KeyRound, CheckCircle2, ArrowLeft, ShieldCheck, PlayCircle } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
@@ -305,8 +305,21 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showForgotModal, setShowForgotModal] = useState(false);
 
-    const { login } = useAuth();
+    const { login, demoLogin } = useAuth();
     const navigate = useNavigate();
+    const [isDemoLoading, setIsDemoLoading] = useState(false);
+
+    const handleDemo = async () => {
+        setError('');
+        setIsDemoLoading(true);
+        try {
+            if (await demoLogin()) navigate('/');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not start the demo. Please try again.');
+        } finally {
+            setIsDemoLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -414,6 +427,19 @@ const Login = () => {
                             </button>
                         </div>
                     </form>
+
+                    <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+                        <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>or<span className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleDemo}
+                        disabled={isDemoLoading || isSubmitting}
+                        className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-bold border-2 border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 bg-brand-50/60 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-all active:scale-[0.98] disabled:opacity-70"
+                    >
+                        {isDemoLoading ? <Loader2 className="animate-spin" size={18} /> : <PlayCircle size={18} />}
+                        {isDemoLoading ? 'Preparing demo… (first load can take up to a minute)' : 'Try the demo - no sign-up'}
+                    </button>
 
                     {/* UI ENHANCEMENT — dark mode sign-up link */}
                     <div className="mt-6 text-center text-sm">

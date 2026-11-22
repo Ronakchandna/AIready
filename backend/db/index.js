@@ -92,6 +92,17 @@ const SCHEMA = [
         created_at timestamptz NOT NULL DEFAULT now()
     )`,
     'CREATE INDEX IF NOT EXISTS files_user_idx ON files (user_id)',
+    // Saved snapshots of a resume (with the analysis score at that moment)
+    `CREATE TABLE IF NOT EXISTS resume_versions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        resume_id uuid NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        label text NOT NULL DEFAULT '',
+        content jsonb NOT NULL,
+        score integer,
+        created_at timestamptz NOT NULL DEFAULT now()
+    )`,
+    'CREATE INDEX IF NOT EXISTS resume_versions_idx ON resume_versions (resume_id, created_at DESC)',
     'CREATE INDEX IF NOT EXISTS resumes_user_idx ON resumes (user_id, updated_at DESC)',
     'CREATE INDEX IF NOT EXISTS jobs_user_idx ON job_applications (user_id, created_at DESC)',
     'CREATE INDEX IF NOT EXISTS interviews_user_idx ON interviews (user_id, updated_at DESC)',
@@ -103,6 +114,7 @@ const SCHEMA = [
     'ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY',
     'ALTER TABLE interviews ENABLE ROW LEVEL SECURITY',
     'ALTER TABLE files ENABLE ROW LEVEL SECURITY',
+    'ALTER TABLE resume_versions ENABLE ROW LEVEL SECURITY',
 ];
 
 const migrate = async () => {

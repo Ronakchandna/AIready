@@ -256,6 +256,67 @@ test('password reset rejects missing/invalid OTP', async () => {
     assert.equal((await call('POST', '/auth/reset-password', { email: 'reset@example.com' })).status, 400);
 });
 
+test('demo login creates a filled demo account and demo leaderboard', async () => {
+    const demo = require('../demo');
+    await demo.ensureDemoData();
+    await demo.ensureDemoData(); // idempotent
+
+    const first = await call('POST', '/auth/demo');
+    assert.equal(first.status, 200, JSON.stringify(first.data));
+    assert.ok(first.data.token);
+    assert.equal(first.data.email, demo.DEMO_EMAIL);
+    const t = first.data.token;
+
+    const stats = await call('GET', '/user/dashboard-stats', undefined, t);
+    assert.equal(stats.data.data.topStats.interviews, 3);
+    assert.equal(stats.data.data.topStats.avgScore, 82);
+    assert.equal((await call('GET', '/jobs', undefined, t)).data.data.length, 6);
+    const resume = (await call('GET', '/resume', undefined, t)).data.data;
+    assert.equal(resume.content.contact.fullName, 'Aarav Mehta');
+    const versions = (await call('GET', `/resume/${resume._id}/versions`, undefined, t)).data.data;
+    assert.deepEqual(versions.map((v) => v.score), [82, 68, 54]);
+
+    // demo users cannot be used with a password, and the demo resets on the next demo login
+    assert.equal((await call('POST', '/auth/login', { email: demo.DEMO_EMAIL, password: 'password123' })).status, 401);
+    await call('DELETE', `/resume/${resume._id}`, undefined, t);
+    const again = await call('POST', '/auth/demo');
+    assert.equal((await call('GET', '/resume/all', undefined, again.data.token)).data.data.length, 1);
+
+    const lb = (await call('GET', '/leaderboard')).data.data;
+    assert.ok(lb.length >= 12);
+    assert.ok(lb.every((u, i) => i === 0 || lb[i - 1].globalRankScore >= u.globalRankScore));
+    assert.ok(lb.every((u) => u.tier === demo.tierFor(u.globalRankScore)));
+});
+
+test('resume version history: save, list, restore, delete, ownership', async () => {
+    const a = await register('versions-a@example.com');
+    const b = await register('versions-b@example.com');
+    const created = await call('POST', '/resume', { title: 'CV', content: { skills: ['Go'] } }, a.token);
+    const id = created.data.data._id;
+    await call('POST', '/user/resume-analysis', { score: 61 }, a.token);
+
+    const v1 = await call('POST', `/resume/${id}/versions`, { label: 'Go only' }, a.token);
+    assert.equal(v1.status, 201);
+    assert.equal(v1.data.data.score, 61);
+    assert.equal(v1.data.data.label, 'Go only');
+    assert.equal(v1.data.data.skillCount, 1);
+
+    await call('POST', '/resume', { id, content: { skills: ['Go', 'Rust'] } }, a.token);
+    const restored = await call('POST', `/resume/${id}/versions/${v1.data.data._id}/restore`, {}, a.token);
+    assert.equal(restored.status, 200);
+    assert.deepEqual(restored.data.data.content.skills, ['Go']);
+
+    const list = (await call('GET', `/resume/${id}/versions`, undefined, a.token)).data.data;
+    assert.deepEqual(list.map((v) => v.label), ['Before restore', 'Go only']);
+    assert.deepEqual(list[0].content.skills, ['Go', 'Rust']); // the undo point
+
+    assert.equal((await call('GET', `/resume/${id}/versions`, undefined, b.token)).status, 404);
+    assert.equal((await call('POST', `/resume/${id}/versions/${v1.data.data._id}/restore`, {}, b.token)).status, 404);
+    assert.equal((await call('DELETE', `/resume/${id}/versions/${v1.data.data._id}`, undefined, b.token)).status, 404);
+    assert.equal((await call('DELETE', `/resume/${id}/versions/${v1.data.data._id}`, undefined, a.token)).status, 200);
+    assert.equal((await call('GET', `/resume/${id}/versions`, undefined, a.token)).data.data.length, 1);
+});
+
 test('unknown API route and malformed JSON', async () => {
     assert.equal((await call('GET', '/does-not-exist')).status, 404);
     const res = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{bad' });

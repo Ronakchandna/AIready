@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#5b3fe4"/>
+  <!-- resume page with folded corner -->
+  <path d="M146 96 H300 L372 168 V400 a20 20 0 0 1 -20 20 H146 a20 20 0 0 1 -20 -20 V116 a20 20 0 0 1 20 -20 Z" fill="#ffffff"/>
+  <path d="M300 96 V148 a20 20 0 0 0 20 20 H372 Z" fill="#c7d2fe"/>
+  <!-- text lines -->
+  <rect x="164" y="200" width="120" height="22" rx="11" fill="#4f46e5"/>
+  <rect x="164" y="248" width="170" height="16" rx="8" fill="#a5b4fc"/>
+  <rect x="164" y="284" width="150" height="16" rx="8" fill="#a5b4fc"/>
+  <!-- check mark: "ATS ready" -->
+  <path d="M168 348 L198 376 L252 322" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- AI sparkle -->
+  <path d="M388 250 C394 286 406 298 442 304 C406 310 394 322 388 358 C382 322 370 310 334 304 C370 298 382 286 388 250 Z" fill="#fde047"/>
+  <path d="M424 196 C427 213 432 218 449 221 C432 224 427 229 424 246 C421 229 416 224 399 221 C416 218 421 213 424 196 Z" fill="#fef9c3"/>
+</svg>

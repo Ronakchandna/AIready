@@ -56,6 +56,51 @@ const Resume = {
         const rows = await db.query('DELETE FROM resumes WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
         return rows.length > 0;
     },
+
+    // ---- version history ------------------------------------------------------------
+    // Snapshot the resume's current content (and its latest analysis score)
+    async saveVersion(resume, label) {
+        const score = Number(resume.analysisAnalysis?.score) || null;
+        return versionToApi(await db.one(
+            `INSERT INTO resume_versions (resume_id, user_id, label, content, score)
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [resume._id, resume.user, String(label || '').trim().slice(0, 80), JSON.stringify(resume.content || {}),
+                score === null ? null : Math.round(score)]
+        ));
+    },
+
+    async listVersions(resumeId, userId) {
+        if (!isId(resumeId)) return [];
+        const rows = await db.query(
+            'SELECT * FROM resume_versions WHERE resume_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 50',
+            [resumeId, userId]);
+        return rows.map(versionToApi);
+    },
+
+    async findVersion(versionId, resumeId, userId) {
+        if (!isId(versionId) || !isId(resumeId)) return null;
+        return versionToApi(await db.one(
+            'SELECT * FROM resume_versions WHERE id = $1 AND resume_id = $2 AND user_id = $3',
+            [versionId, resumeId, userId]));
+    },
+
+    async deleteVersion(versionId, resumeId, userId) {
+        if (!isId(versionId) || !isId(resumeId)) return false;
+        const rows = await db.query(
+            'DELETE FROM resume_versions WHERE id = $1 AND resume_id = $2 AND user_id = $3 RETURNING id',
+            [versionId, resumeId, userId]);
+        return rows.length > 0;
+    },
 };
+
+const versionToApi = (row) => row && ({
+    _id: row.id,
+    resume: row.resume_id,
+    label: row.label,
+    content: row.content || {},
+    score: row.score,
+    skillCount: Array.isArray(row.content?.skills) ? row.content.skills.length : 0,
+    createdAt: row.created_at,
+});
 
 module.exports = Resume;

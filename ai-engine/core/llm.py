@@ -86,6 +86,22 @@ def complete(prompt: str, *, json_mode: bool = False, temperature: float = 0.3, 
     return text.strip()
 
 
+def chat(system: str, history: list, *, temperature: float = 0.5, max_tokens: int = 900) -> str:
+    """Multi-turn chat. `history` is [{"role": "user"|"assistant", "content": str}, ...]."""
+    if not is_configured():
+        raise LLMUnavailable("GROQ_API_KEY is not configured")
+    messages = [{"role": "system", "content": system + "\n\n" + SYSTEM_GUARD}]
+    messages += [{"role": m["role"], "content": m["content"]} for m in history]
+    try:
+        text = _call(messages, False, temperature, max_tokens)
+    except Exception as exc:
+        log.warning("LLM chat failed: %s", exc)
+        raise LLMUnavailable(str(exc)) from exc
+    if not text.strip():
+        raise LLMUnavailable("Empty response from model")
+    return text.strip()
+
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*", "", text)

@@ -55,6 +55,19 @@ export const AuthProvider = ({ children }) => {
         return false;
     };
 
+    // Sign in to the shared demo account (no password; its sample data is reset each time)
+    const demoLogin = async () => {
+        const { data } = await axios.post(`${API_URL}/auth/demo`);
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            setToken(data.token);
+            setUser({ ...data, id: data._id, storedResumes: data.storedResumes || [] });
+            setIsAuthenticated(true);
+            return true;
+        }
+        return false;
+    };
+
     const register = async (name, email, password) => {
         const { data } = await axios.post(`${API_URL}/auth/register`, { name, email, password });
         if (data.token) {
@@ -150,7 +163,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login, register, logout, updateProfile, uploadProfileResume, deleteProfileResume }}>
+        <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login, demoLogin, register, logout, updateProfile, uploadProfileResume, deleteProfileResume }}>
             {children}
         </AuthContext.Provider>
     );

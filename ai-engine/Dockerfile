@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Tesseract OCR (English) for scanned, image-only resume PDFs
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first (better layer caching). The spaCy model is pinned in requirements.txt.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
