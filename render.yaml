@@ -1,21 +1,99 @@
-# Render Blueprint - https://render.com/docs/blueprint-spec
-# Render dashboard -> New -> Blueprint -> pick this repo. You will be asked for the values marked sync: false.
+# Render Blueprint for the whole platform - https://render.com/docs/blueprint-spec
+# Three free services: Python AI engine, Node backend, React frontend.
+# Values marked "sync: false" are secrets you enter in the Render dashboard (Environment tab).
 services:
+  # ---------------------------------------------------------------- AI engine (Python / FastAPI)
   - type: web
     name: ai-resume-engine
     runtime: docker
-    plan: free              # ~225 MB RAM used; free tier sleeps after 15 min idle (first request then takes ~1 min)
+    plan: free
+    rootDir: ai-engine
     dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /health
-    autoDeploy: true        # redeploys on every push to main
+    autoDeploy: true
+    buildFilter:
+      paths: ["ai-engine/**"]
     envVars:
       - key: API_KEY
-        generateValue: true # Render creates a strong random key; copy it from the Environment tab for your backend
+        generateValue: true   # shared secret; the backend reads it automatically below
       - key: GROQ_API_KEY
-        sync: false         # paste your Groq key when creating the service
-      - key: ALLOWED_ORIGINS
-        sync: false         # e.g. https://your-frontend.onrender.com,https://your-backend.onrender.com
+        sync: false
       - key: TRUST_PROXY
         value: "true"
       - key: RATE_LIMIT_PER_MINUTE
-        value: "60"
+        value: "120"
+
+  # ---------------------------------------------------------------- Backend (Node / Express / MongoDB)
+  - type: web
+    name: airesume-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    buildFilter:
+      paths: ["backend/**"]
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGODB_URI
+        sync: false           # MongoDB Atlas connection string
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://airesume-web.onrender.com
+      - key: AI_SERVICE_URL
+        value: https://ai-resume-engine.onrender.com
+      - key: AI_API_KEY
+        fromService:
+          name: ai-resume-engine
+          type: web
+          envVarKey: API_KEY
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  # ---------------------------------------------------------------- Frontend (React static site)
+  - type: web
+    name: airesume-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./build
+    autoDeploy: true
+    buildFilter:
+      paths: ["frontend/**"]
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: REACT_APP_NODE_API_URL
+        value: https://airesume-backend.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
