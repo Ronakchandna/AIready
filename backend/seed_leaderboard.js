@@ -1,74 +1,31 @@
-const mongoose = require('mongoose');
+// Adds demo users to the leaderboard. Run: npm run seed  (uses DATABASE_URL from .env)
 require('dotenv').config();
+const db = require('./db');
 const User = require('./models/User');
 
-const seedLeaderboard = async () => {
+const demoUsers = [
+    { name: 'Alex Rivera', email: 'alex@demo.airesume', globalRankScore: 920, tier: 'Diamond', categoryTrack: 'Software Engineering', profilePhoto: 'https://i.pravatar.cc/150?u=alex' },
+    { name: 'Sarah Chen', email: 'sarah@demo.airesume', globalRankScore: 885, tier: 'Platinum', categoryTrack: 'Data Science', profilePhoto: 'https://i.pravatar.cc/150?u=sarah' },
+    { name: 'Marcus Johnson', email: 'marcus@demo.airesume', globalRankScore: 840, tier: 'Gold', categoryTrack: 'Software Engineering', profilePhoto: 'https://i.pravatar.cc/150?u=marcus' },
+    { name: 'Elena Rodriguez', email: 'elena@demo.airesume', globalRankScore: 780, tier: 'Silver', categoryTrack: 'Product Management', profilePhoto: 'https://i.pravatar.cc/150?u=elena' },
+    { name: 'David Kim', email: 'david@demo.airesume', globalRankScore: 950, tier: 'Diamond', categoryTrack: 'Design', profilePhoto: 'https://i.pravatar.cc/150?u=david' },
+];
+
+(async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/ai-resume-platform');
-
-        const dummyUsers = [
-            {
-                name: 'Alex Rivera',
-                email: `alex_${Date.now()}@example.com`,
-                password: 'password123',
-                leaderboardOptIn: true,
-                globalRankScore: 920,
-                tier: 'Diamond',
-                categoryTrack: 'Software Engineering',
-                profilePhoto: 'https://i.pravatar.cc/150?u=alex'
-            },
-            {
-                name: 'Sarah Chen',
-                email: `sarah_${Date.now()}@example.com`,
-                password: 'password123',
-                leaderboardOptIn: true,
-                globalRankScore: 885,
-                tier: 'Platinum',
-                categoryTrack: 'Data Science',
-                profilePhoto: 'https://i.pravatar.cc/150?u=sarah'
-            },
-            {
-                name: 'Marcus Johnson',
-                email: `marcus_${Date.now()}@example.com`,
-                password: 'password123',
-                leaderboardOptIn: true,
-                globalRankScore: 840,
-                tier: 'Gold',
-                categoryTrack: 'Software Engineering',
-                profilePhoto: 'https://i.pravatar.cc/150?u=marcus'
-            },
-            {
-                name: 'Elena Rodriguez',
-                email: `elena_${Date.now()}@example.com`,
-                password: 'password123',
-                leaderboardOptIn: true,
-                globalRankScore: 780,
-                tier: 'Silver',
-                categoryTrack: 'Product Management',
-                profilePhoto: 'https://i.pravatar.cc/150?u=elena'
-            },
-            {
-                name: 'David Kim',
-                email: `david_${Date.now()}@example.com`,
-                password: 'password123',
-                leaderboardOptIn: true,
-                globalRankScore: 950,
-                tier: 'Diamond',
-                categoryTrack: 'Design',
-                profilePhoto: 'https://i.pravatar.cc/150?u=david'
-            }
-        ];
-
-        for (const u of dummyUsers) {
-            await User.findOneAndUpdate({ email: u.email }, u, { upsert: true, new: true, setDefaultsOnInsert: true });
+        db.connect();
+        await db.migrate();
+        for (const u of demoUsers) {
+            const existing = await User.findByEmail(u.email);
+            const { email, name, ...rest } = u;
+            const fields = { ...rest, leaderboardOptIn: true };
+            if (existing) await User.update(existing._id, fields);
+            else await User.create({ name, email, password: 'password123', ...fields });
         }
-
-        console.log('Leaderboard dummy candidates seeded successfully!');
-        process.exit();
+        console.log('Leaderboard demo users seeded successfully!');
+        process.exit(0);
     } catch (error) {
         console.error('Seeding failed:', error);
         process.exit(1);
     }
-};
-
-seedLeaderboard();
+})();

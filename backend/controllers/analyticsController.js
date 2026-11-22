@@ -9,9 +9,12 @@ const getUserAnalytics = asyncHandler(async (req, res) => {
     const userId = req.user._id; // Fixed: use _id consistently
 
     // 1. Fetch data
-    const resumes = await Resume.find({ user: userId }).sort({ updatedAt: -1 });
-    const jobs = await JobApplication.find({ user: userId }).sort({ updatedAt: -1 });
-    const interviews = await Interview.find({ user: userId }).sort({ updatedAt: -1 });
+    const byUpdatedDesc = (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt);
+    const [resumes, jobs, interviews] = await Promise.all([
+        Resume.findAllByUser(userId),
+        JobApplication.findAllByUser(userId).then((list) => list.sort(byUpdatedDesc)),
+        Interview.findAllByUser(userId),
+    ]);
 
     // 2. Top Stats Calculations
     const totalInterviews = interviews.length;
@@ -47,13 +50,13 @@ const getUserAnalytics = asyncHandler(async (req, res) => {
     }
 
     interviews.forEach(int => {
-        const dateStr = int.updatedAt.toISOString().split('T')[0];
+        const dateStr = new Date(int.updatedAt).toISOString().split('T')[0];
         const dayObj = last7Days.find(d => d.date === dateStr);
         if (dayObj) dayObj.interviews++;
     });
 
     resumes.forEach(res => {
-        const dateStr = res.updatedAt.toISOString().split('T')[0];
+        const dateStr = new Date(res.updatedAt).toISOString().split('T')[0];
         const dayObj = last7Days.find(d => d.date === dateStr);
         if (dayObj) dayObj.resumes++;
     });
@@ -156,17 +159,19 @@ const getUserAnalytics = asyncHandler(async (req, res) => {
 
 const saveInterview = asyncHandler(async (req, res) => {
     const { jobRole, results, overallScore, overallFeedback } = req.body;
+    if (!Array.isArray(results)) {
+        return res.status(400).json({ success: false, message: 'Interview results are required' });
+    }
 
     // Format questions array combining questions and answers
     const formattedQuestions = results.map(r => ({
-        questionText: r.question,
-        userAnswer: r.answer,
-        aiEvaluation: r.feedback,
-        score: r.score
+        questionText: r?.question,
+        userAnswer: r?.answer,
+        aiEvaluation: r?.feedback,
+        score: r?.score
     }));
 
-    const interview = await Interview.create({
-        user: req.user._id,
+    const interview = await Interview.create(req.user._id, {
         jobRole: jobRole || 'General Interview',
         questions: formattedQuestions,
         overallScore: overallScore || 0,
@@ -179,19 +184,16 @@ const saveInterview = asyncHandler(async (req, res) => {
 const saveResumeAnalysis = asyncHandler(async (req, res) => {
     const { score, missingKeywords, feedback } = req.body;
     // Find the latest resume the user worked on
-    const resume = await Resume.findOne({ user: req.user._id }).sort({ updatedAt: -1 });
-    if (resume) {
-        resume.analysisAnalysis = {
-            score: score || 0,
-            missingKeywords: missingKeywords || [],
-            feedback: feedback || 'Analysis completed.'
-        };
-        await resume.save();
-        res.status(200).json({ success: true, data: resume });
-    } else {
-        res.status(500);
-        throw new Error('Server error analyzing resume');
+    const resume = await Resume.findLatest(req.user._id);
+    if (!resume) {
+        return res.status(404).json({ success: false, message: 'Save a resume in the builder first to store its analysis.' });
     }
+    const updated = await Resume.setAnalysis(resume._id, {
+        score: Number(score) || 0,
+        missingKeywords: Array.isArray(missingKeywords) ? missingKeywords : [],
+        feedback: feedback || 'Analysis completed.'
+    });
+    res.status(200).json({ success: true, data: updated });
 });
 
 const evaluateGlobalRank = asyncHandler(async (req, res) => {
@@ -258,12 +260,7 @@ const evaluateGlobalRank = asyncHandler(async (req, res) => {
     else if (score === 0) tier = 'Unranked'; // Edge case where nothing extracted
 
     // Save to User
-    const user = await User.findById(req.user._id);
-    if (user) {
-        user.globalRankScore = score;
-        user.tier = tier;
-        await user.save();
-    }
+    await User.update(req.user._id, { globalRankScore: score, tier });
 
     res.json({
         success: true,

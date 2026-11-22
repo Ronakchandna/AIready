@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test_routes.js",
+    "test": "node test_routes.js && node --test tests/api.test.js",
     "seed": "node seed_leaderboard.js"
   },
   "engines": {
@@ -23,14 +23,16 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-async-handler": "^1.2.0",
-    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.2.1",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^8.0.10",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17"
   }
 }

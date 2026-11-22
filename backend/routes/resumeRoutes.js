@@ -9,26 +9,19 @@ const { protect } = require('../middleware/authMiddleware');
 router.post('/', protect, async (req, res) => {
     try {
         const { id, title, content } = req.body;
-
-        let resume;
-        if (id) {
-            resume = await Resume.findOne({ _id: id, user: req.user._id });
-            if (resume) {
-                resume.title = title || resume.title;
-                resume.content = content;
-                await resume.save();
-                return res.status(200).json({ success: true, data: resume });
-            } else {
-                return res.status(404).json({ message: 'Resume not found or unauthorized' });
-            }
+        if (content !== undefined && (typeof content !== 'object' || Array.isArray(content))) {
+            return res.status(400).json({ message: 'Invalid resume content' });
         }
 
-        resume = await Resume.create({
-            user: req.user._id,
-            title: title || 'My Resume',
-            content
-        });
+        if (id) {
+            const resume = await Resume.update(id, req.user._id, { title, content });
+            if (!resume) {
+                return res.status(404).json({ message: 'Resume not found or unauthorized' });
+            }
+            return res.status(200).json({ success: true, data: resume });
+        }
 
+        const resume = await Resume.create(req.user._id, { title, content });
         res.status(200).json({ success: true, data: resume });
     } catch (error) {
         console.error('Save Resume Error:', error.message);
@@ -41,11 +34,8 @@ router.post('/', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const resume = await Resume.findOne({ user: req.user._id }).sort({ updatedAt: -1 });
-        if (!resume) {
-            return res.status(200).json({ success: true, data: null });
-        }
-        res.status(200).json({ success: true, data: resume });
+        const resume = await Resume.findLatest(req.user._id);
+        res.status(200).json({ success: true, data: resume || null });
     } catch (error) {
         console.error('Fetch Resume Error:', error.message);
         res.status(500).json({ message: 'Server Error fetching resume' });
@@ -57,7 +47,7 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.get('/all', protect, async (req, res) => {
     try {
-        const resumes = await Resume.find({ user: req.user._id }).sort({ updatedAt: -1 });
+        const resumes = await Resume.findAllByUser(req.user._id);
         res.status(200).json({ success: true, data: resumes });
     } catch (error) {
         console.error('Fetch All Resumes Error:', error.message);
@@ -70,11 +60,10 @@ router.get('/all', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
     try {
-        const resume = await Resume.findOne({ _id: req.params.id, user: req.user._id });
-        if (!resume) {
+        const deleted = await Resume.deleteOwned(req.params.id, req.user._id);
+        if (!deleted) {
             return res.status(404).json({ message: 'No resume found' });
         }
-        await resume.deleteOne();
         res.status(200).json({ success: true, message: 'Resume deleted' });
     } catch (error) {
         console.error('Delete Resume Error:', error.message);

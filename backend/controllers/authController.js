@@ -6,11 +6,24 @@ const { useCloudinary } = require('../utils/upload');
 const { sendOtpEmail } = require('../utils/emailService');
 
 // Generate JWT
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '1d',
-    });
-};
+const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+
+// Same profile payload the frontend has always received
+const profileResponse = (user) => ({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    gender: user.gender,
+    age: user.age,
+    profilePhoto: user.profilePhoto,
+    globalRankScore: user.globalRankScore,
+    tier: user.tier,
+    categoryTrack: user.categoryTrack,
+    leaderboardOptIn: user.leaderboardOptIn,
+    storedResumes: user.storedResumes,
+    token: generateToken(user._id),
+});
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -18,13 +31,12 @@ const generateToken = (id) => {
 const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
 
-    // Input Validation
-    if (!name || !email || !password) {
+    if (!name || !email || !password || typeof email !== 'string' || typeof password !== 'string') {
         return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(email.trim())) {
         return res.status(400).json({ message: 'Invalid email format' });
     }
 
@@ -33,31 +45,23 @@ const registerUser = async (req, res) => {
     }
 
     try {
-        const userExists = await User.findOne({ email });
-
-        if (userExists) {
+        if (await User.findByEmail(email)) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const user = await User.create({
-            name,
-            email,
-            password,
+        const user = await User.create({ name, email, password });
+        res.status(201).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            token: generateToken(user._id),
         });
-
-        if (user) {
-            res.status(201).json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                token: generateToken(user._id),
-            });
-        } else {
-            res.status(400).json({ message: 'Invalid user data' });
-        }
     } catch (error) {
+        if (error.code === '23505') { // unique violation (race on same email)
+            return res.status(400).json({ message: 'User already exists' });
+        }
         console.error('Registration Error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -72,9 +76,9 @@ const loginUser = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findByEmail(email);
 
-        if (user && (await user.matchPassword(password))) {
+        if (user && (await User.matchPassword(user, password))) {
             res.json({
                 _id: user._id,
                 name: user.name,
@@ -86,7 +90,7 @@ const loginUser = async (req, res) => {
         }
     } catch (error) {
         console.error('Login Error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -103,50 +107,37 @@ const getUserProfile = async (req, res) => {
 const updateUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
 
-        if (user) {
-            user.name = req.body.name || user.name;
-            user.phone = req.body.phone !== undefined ? req.body.phone : user.phone;
-            user.gender = req.body.gender || user.gender;
-            user.age = req.body.age !== undefined ? req.body.age : user.age;
-            user.profilePhoto = req.body.profilePhoto !== undefined ? req.body.profilePhoto : user.profilePhoto;
-            user.categoryTrack = req.body.categoryTrack || user.categoryTrack;
-            user.leaderboardOptIn = req.body.leaderboardOptIn !== undefined ? req.body.leaderboardOptIn : user.leaderboardOptIn;
-
-            if (req.body.storedResumes !== undefined) {
-                user.storedResumes = req.body.storedResumes;
-            }
-
-            if (req.body.password) {
-                if (!req.body.oldPassword) {
-                    return res.status(400).json({ message: 'Please provide your current password to set a new password' });
-                }
-                if (!(await user.matchPassword(req.body.oldPassword))) {
-                    return res.status(401).json({ message: 'Current password is incorrect' });
-                }
-                user.password = req.body.password;
-            }
-
-            const updatedUser = await user.save();
-
-            res.json({
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                phone: updatedUser.phone,
-                gender: updatedUser.gender,
-                age: updatedUser.age,
-                profilePhoto: updatedUser.profilePhoto,
-                globalRankScore: updatedUser.globalRankScore,
-                tier: updatedUser.tier,
-                categoryTrack: updatedUser.categoryTrack,
-                leaderboardOptIn: updatedUser.leaderboardOptIn,
-                storedResumes: updatedUser.storedResumes,
-                token: generateToken(updatedUser._id),
-            });
-        } else {
-            res.status(404).json({ message: 'User not found' });
+        const b = req.body;
+        const updates = {};
+        if (b.name) updates.name = String(b.name).trim();
+        if (b.phone !== undefined) updates.phone = String(b.phone ?? '');
+        if (b.gender && User.GENDERS.includes(b.gender)) updates.gender = b.gender;
+        if (b.age !== undefined) {
+            const age = parseInt(b.age, 10);
+            updates.age = Number.isFinite(age) && age > 0 && age < 130 ? age : null;
         }
+        if (b.profilePhoto !== undefined) updates.profilePhoto = String(b.profilePhoto ?? '');
+        if (b.categoryTrack && User.CATEGORIES.includes(b.categoryTrack)) updates.categoryTrack = b.categoryTrack;
+        if (b.leaderboardOptIn !== undefined) updates.leaderboardOptIn = Boolean(b.leaderboardOptIn);
+        if (b.storedResumes !== undefined) updates.storedResumes = b.storedResumes;
+
+        if (b.password) {
+            if (!b.oldPassword) {
+                return res.status(400).json({ message: 'Please provide your current password to set a new password' });
+            }
+            if (!(await User.matchPassword(user, b.oldPassword))) {
+                return res.status(401).json({ message: 'Current password is incorrect' });
+            }
+            if (String(b.password).length < 6) {
+                return res.status(400).json({ message: 'Password must be at least 6 characters' });
+            }
+            updates.password = String(b.password);
+        }
+
+        const updatedUser = await User.update(user._id, updates);
+        res.json(profileResponse(updatedUser));
     } catch (error) {
         console.error('Update Profile Error:', error);
         res.status(500).json({ message: 'Server error updating profile' });
@@ -158,45 +149,23 @@ const updateUserProfile = async (req, res) => {
 // @access  Private
 const uploadProfileResume = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
-
-        if (user) {
-            if (!req.file) {
-                return res.status(400).json({ message: 'No file uploaded' });
-            }
-
-            let fileUrl = req.file.path;
-            if (!useCloudinary) {
-                // If local fallback, construct the full URL
-                fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-            }
-
-            // Append new resume
-            user.storedResumes.push({
-                title: req.file.originalname.replace('.pdf', ''),
-                url: fileUrl
-            });
-
-            const updatedUser = await user.save();
-
-            res.json({
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                phone: updatedUser.phone,
-                gender: updatedUser.gender,
-                age: updatedUser.age,
-                profilePhoto: updatedUser.profilePhoto,
-                globalRankScore: updatedUser.globalRankScore,
-                tier: updatedUser.tier,
-                categoryTrack: updatedUser.categoryTrack,
-                leaderboardOptIn: updatedUser.leaderboardOptIn,
-                storedResumes: updatedUser.storedResumes,
-                token: generateToken(updatedUser._id),
-            });
-        } else {
-            res.status(404).json({ message: 'User not found' });
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
         }
+
+        let fileUrl = req.file.path;
+        if (!useCloudinary) {
+            // If local fallback, construct the full URL
+            fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        }
+
+        const updatedUser = await User.addStoredResume(req.user._id, {
+            title: req.file.originalname.replace(/\.pdf$/i, ''),
+            url: fileUrl,
+        });
+        if (!updatedUser) return res.status(404).json({ message: 'User not found' });
+
+        res.json(profileResponse(updatedUser));
     } catch (error) {
         console.error('Upload Resume Error:', error);
         res.status(500).json({ message: 'Server error uploading resume' });
@@ -209,34 +178,16 @@ const uploadProfileResume = async (req, res) => {
 const deleteProfileResume = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
 
-        if (user) {
-            const index = parseInt(req.params.index);
-            if (index >= 0 && index < user.storedResumes.length) {
-                user.storedResumes.splice(index, 1);
-                const updatedUser = await user.save();
-
-                res.json({
-                    _id: updatedUser._id,
-                    name: updatedUser.name,
-                    email: updatedUser.email,
-                    phone: updatedUser.phone,
-                    gender: updatedUser.gender,
-                    age: updatedUser.age,
-                    profilePhoto: updatedUser.profilePhoto,
-                    globalRankScore: updatedUser.globalRankScore,
-                    tier: updatedUser.tier,
-                    categoryTrack: updatedUser.categoryTrack,
-                    leaderboardOptIn: updatedUser.leaderboardOptIn,
-                    storedResumes: updatedUser.storedResumes,
-                    token: generateToken(updatedUser._id),
-                });
-            } else {
-                res.status(400).json({ message: 'Invalid resume index' });
-            }
-        } else {
-            res.status(404).json({ message: 'User not found' });
+        const index = parseInt(req.params.index, 10);
+        if (!(index >= 0 && index < user.storedResumes.length)) {
+            return res.status(400).json({ message: 'Invalid resume index' });
         }
+
+        const remaining = user.storedResumes.filter((_, i) => i !== index);
+        const updatedUser = await User.update(user._id, { storedResumes: remaining });
+        res.json(profileResponse(updatedUser));
     } catch (error) {
         console.error('Delete Resume Error:', error);
         res.status(500).json({ message: 'Server error deleting resume' });
@@ -254,23 +205,19 @@ const forgotPassword = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        const user = await User.findByEmail(email);
 
         // Always return success to prevent email enumeration
         if (!user) {
             return res.json({ message: 'If an account with that email exists, an OTP has been sent.' });
         }
 
-        // Generate 6-digit OTP
         const otp = crypto.randomInt(100000, 999999).toString();
+        await User.update(user._id, {
+            resetOtp: await bcrypt.hash(otp, await bcrypt.genSalt(10)),
+            resetOtpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        });
 
-        // Hash the OTP before storing
-        const salt = await bcrypt.genSalt(10);
-        user.resetOtp = await bcrypt.hash(otp, salt);
-        user.resetOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-        await user.save();
-
-        // Send OTP email
         await sendOtpEmail(user.email, otp);
 
         res.json({ message: 'If an account with that email exists, an OTP has been sent.' });
@@ -286,7 +233,7 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
     const { email, otp, newPassword } = req.body;
 
-    if (!email || !otp || !newPassword) {
+    if (!email || !otp || !newPassword || typeof newPassword !== 'string') {
         return res.status(400).json({ message: 'Please provide email, OTP, and new password' });
     }
 
@@ -295,31 +242,22 @@ const resetPassword = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        const user = await User.findByEmail(email);
 
         if (!user || !user.resetOtp || !user.resetOtpExpires) {
             return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
         }
 
-        // Check if OTP has expired
-        if (new Date() > user.resetOtpExpires) {
-            user.resetOtp = null;
-            user.resetOtpExpires = null;
-            await user.save();
+        if (new Date() > new Date(user.resetOtpExpires)) {
+            await User.update(user._id, { resetOtp: null, resetOtpExpires: null });
             return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
         }
 
-        // Verify OTP
-        const isOtpValid = await bcrypt.compare(otp, user.resetOtp);
-        if (!isOtpValid) {
+        if (!(await bcrypt.compare(String(otp), user.resetOtp))) {
             return res.status(400).json({ message: 'Invalid OTP. Please check and try again.' });
         }
 
-        // Reset password (pre-save hook will hash it)
-        user.password = newPassword;
-        user.resetOtp = null;
-        user.resetOtpExpires = null;
-        await user.save();
+        await User.update(user._id, { password: newPassword, resetOtp: null, resetOtpExpires: null });
 
         res.json({ message: 'Password has been reset successfully. You can now log in.' });
     } catch (error) {

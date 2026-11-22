@@ -6,11 +6,11 @@ practise interviews with AI feedback and track applications.
 | Folder | Stack | Purpose |
 |---|---|---|
 | [`frontend/`](frontend) | React 19, Tailwind, Framer Motion | Web app (dashboard, resume builder/analyzer, mock interview, job tracker, leaderboard) |
-| [`backend/`](backend) | Node.js, Express 5, MongoDB (Mongoose), JWT, Cloudinary | Auth, data, file uploads, proxy to the AI engine |
+| [`backend/`](backend) | Node.js, Express 5, PostgreSQL (Supabase), JWT, Cloudinary | Auth, data, file uploads, proxy to the AI engine |
 | [`ai-engine/`](ai-engine) | Python, FastAPI, spaCy, scikit-learn, Groq LLM | Resume analysis, ATS scoring, interview Q&A, cover letters, PDF parsing |
 
 ```
-Browser ──► frontend (static) ──► backend (/api, JWT) ──► MongoDB Atlas
+Browser ──► frontend (static) ──► backend (/api, JWT) ──► Supabase Postgres
                                         │                 Cloudinary (PDFs)
                                         └──(x-api-key)──► ai-engine ──► Groq LLM
 ```
@@ -24,5 +24,6 @@ Browser ──► frontend (static) ──► backend (/api, JWT) ──► Mong
 ## Deploy (Render, free)
 
 `render.yaml` defines all three services. In Render: **New → Blueprint → this repo**, then fill in the secret
-environment variables (MongoDB Atlas URI, Groq key, Cloudinary, email). Every push to `main` redeploys only
+environment variables (Supabase `DATABASE_URL`, Groq key, Cloudinary, email). The backend creates its
+tables automatically on first start. Backend tests: `cd backend && npm test` (uses an in-memory Postgres). Every push to `main` redeploys only
 the part that changed.

@@ -41,8 +41,8 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
-      - key: MONGODB_URI
-        sync: false           # MongoDB Atlas connection string
+      - key: DATABASE_URL
+        sync: false           # Supabase "Session pooler" connection string
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
