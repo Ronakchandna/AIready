@@ -60,6 +60,8 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: BREVO_API_KEY
+        sync: false           # email via HTTPS (Render free blocks SMTP ports)
       - key: EMAIL_HOST
         sync: false
       - key: EMAIL_PORT

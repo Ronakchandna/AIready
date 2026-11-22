@@ -239,7 +239,10 @@ def generate_cover_letter(resume_text: str, jd_text: str) -> Dict[str, Any]:
         "candidate in <resume> applying to the job in <job_description>. Highlight relevant skills and experience "
         "that match the requirements. Do NOT invent experience or employers; if a requirement is missing from the "
         "resume, emphasise transferable skills and ability to learn. Tone: confident, concise, modern. "
-        "Use bracketed placeholders like [Hiring Manager] or [Company] when unknown. Return only the letter.\n"
+        "Format: start directly with 'Dear Hiring Manager,' (no address, date or contact header block), "
+        "3-4 short paragraphs, then 'Sincerely,' and the candidate's full name taken from the resume. "
+        "Refer to the employer as 'your company' or by name if the job description gives one - never use "
+        "bracketed placeholders, except [Your Name] if the resume has no name. Return only the letter.\n"
         + llm.fence("job_description", jd_text) + "\n" + llm.fence("resume", resume_text)
     )
     try:

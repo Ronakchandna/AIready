@@ -1,9 +1,10 @@
 const User = require('../models/User');
+const File = require('../models/File');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { useCloudinary } = require('../utils/upload');
-const { sendOtpEmail } = require('../utils/emailService');
+const { sendOtpEmail, emailConfigured } = require('../utils/emailService');
 
 // Generate JWT
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -153,10 +154,14 @@ const uploadProfileResume = async (req, res) => {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        let fileUrl = req.file.path;
+        let fileUrl = req.file.path; // Cloudinary URL
         if (!useCloudinary) {
-            // If local fallback, construct the full URL
-            fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+            const saved = await File.create(req.user._id, {
+                filename: req.file.originalname,
+                mimeType: req.file.mimetype,
+                buffer: req.file.buffer,
+            });
+            fileUrl = `${req.protocol}://${req.get('host')}/api/files/${saved.id}`;
         }
 
         const updatedUser = await User.addStoredResume(req.user._id, {
@@ -187,6 +192,7 @@ const deleteProfileResume = async (req, res) => {
 
         const remaining = user.storedResumes.filter((_, i) => i !== index);
         const updatedUser = await User.update(user._id, { storedResumes: remaining });
+        await File.deleteOwned(File.idFromUrl(user.storedResumes[index].url), user._id);
         res.json(profileResponse(updatedUser));
     } catch (error) {
         console.error('Delete Resume Error:', error);
@@ -204,6 +210,11 @@ const forgotPassword = async (req, res) => {
         return res.status(400).json({ message: 'Please provide a valid email address' });
     }
 
+    // In production, say so clearly instead of pretending an email was sent
+    if (process.env.NODE_ENV === 'production' && !emailConfigured()) {
+        return res.status(503).json({ message: 'Password reset by email is not available right now. Please contact support.' });
+    }
+
     try {
         const user = await User.findByEmail(email);
 
@@ -218,7 +229,10 @@ const forgotPassword = async (req, res) => {
             resetOtpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
         });
 
-        await sendOtpEmail(user.email, otp);
+        const sent = await sendOtpEmail(user.email, otp);
+        if (!sent && process.env.NODE_ENV === 'production') {
+            return res.status(503).json({ message: 'Could not send the reset email right now. Please try again later.' });
+        }
 
         res.json({ message: 'If an account with that email exists, an OTP has been sent.' });
     } catch (error) {

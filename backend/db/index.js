@@ -81,6 +81,17 @@ const SCHEMA = [
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
     )`,
+    // Uploaded resume PDFs (max 5 MB each), served by GET /api/files/:id
+    `CREATE TABLE IF NOT EXISTS files (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        filename text NOT NULL,
+        mime_type text NOT NULL DEFAULT 'application/pdf',
+        size integer NOT NULL,
+        data bytea NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+    )`,
+    'CREATE INDEX IF NOT EXISTS files_user_idx ON files (user_id)',
     'CREATE INDEX IF NOT EXISTS resumes_user_idx ON resumes (user_id, updated_at DESC)',
     'CREATE INDEX IF NOT EXISTS jobs_user_idx ON job_applications (user_id, created_at DESC)',
     'CREATE INDEX IF NOT EXISTS interviews_user_idx ON interviews (user_id, updated_at DESC)',
@@ -91,6 +102,7 @@ const SCHEMA = [
     'ALTER TABLE resumes ENABLE ROW LEVEL SECURITY',
     'ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY',
     'ALTER TABLE interviews ENABLE ROW LEVEL SECURITY',
+    'ALTER TABLE files ENABLE ROW LEVEL SECURITY',
 ];
 
 const migrate = async () => {

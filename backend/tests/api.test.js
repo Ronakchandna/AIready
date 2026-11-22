@@ -107,6 +107,33 @@ test('profile read/update, stored resumes and password change', async () => {
     assert.deepEqual(d.data.storedResumes, []);
 });
 
+test('profile PDF upload is stored in the database and downloadable', async () => {
+    const { token } = await register('upload@example.com');
+    const pdfBytes = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
+    const upload = async (name, type) => {
+        const form = new FormData();
+        form.append('resume', new Blob([pdfBytes], { type }), name);
+        const res = await fetch(`${base}/auth/profile/resume`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
+        return { status: res.status, data: await res.json() };
+    };
+
+    assert.equal((await upload('cv.txt', 'text/plain')).status, 400);
+    const up = await upload('My CV.pdf', 'application/pdf');
+    assert.equal(up.status, 200, JSON.stringify(up.data));
+    const stored = up.data.storedResumes[0];
+    assert.equal(stored.title, 'My CV');
+    assert.match(stored.url, /\/api\/files\/[0-9a-f-]{36}$/);
+
+    const dl = await fetch(stored.url);
+    assert.equal(dl.status, 200);
+    assert.equal(dl.headers.get('content-type'), 'application/pdf');
+    assert.deepEqual(Buffer.from(await dl.arrayBuffer()), pdfBytes);
+
+    assert.equal((await call('DELETE', '/auth/profile/resume/0', undefined, token)).status, 200);
+    assert.equal((await fetch(stored.url)).status, 404); // file removed with the link
+    assert.equal((await fetch(`${base}/files/not-an-id`)).status, 404);
+});
+
 test('resume builder CRUD is scoped to the owner', async () => {
     const a = await register('resume-a@example.com');
     const b = await register('resume-b@example.com');

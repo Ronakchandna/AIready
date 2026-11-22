@@ -55,6 +55,8 @@ GENERIC_WORDS = {
     "software", "development", "developer", "engineer", "engineering", "senior", "junior", "level", "field",
     "ideal", "must", "nice", "will", "using", "based", "related", "relevant", "similar", "key", "new",
     "free", "time", "day", "week", "month", "salary", "location", "remote", "office", "us", "we", "you",
+    "full", "stack", "end", "front", "back", "hiring", "hire", "join", "member", "members", "candidates",
+    "applicants", "role", "roles", "track", "record", "plus", "bonus", "growth", "culture", "pay",
 }
 
 
@@ -89,6 +91,8 @@ def domain_phrases(text: str, limit: int = 12) -> List[str]:
             phrase = " ".join(words)
             if len(phrase) > 3 and not extract_skills(phrase):
                 counts[phrase] += 1
+    # a lone word is only a meaningful keyword if the text repeats it; multi-word phrases count once
+    counts = Counter({p: c for p, c in counts.items() if " " in p or c >= 2})
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))
     return [p for p, _ in ranked[:limit]]
 

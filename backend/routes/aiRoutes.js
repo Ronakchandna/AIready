@@ -1,41 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const axios = require('axios');
 const { protect } = require('../middleware/authMiddleware');
-const { AI_SERVICE_URL, AI_API_KEY, aiErrorMessage } = require('../config/ai');
+const { aiErrorMessage, forwardToAi } = require('../config/ai');
 
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 } // matches the AI engine's 5MB PDF limit
 });
 
-// Server-to-server call to the Python AI engine.
-// On the free tier the engine sleeps when idle; while it wakes up Render answers 502/503,
-// so retry those for up to ~75s instead of failing the user's first request.
-const WAKE_STATUSES = new Set([502, 503, 504]);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-const forwardToAi = async (endpoint, data) => {
-    const deadline = Date.now() + 75000;
-    for (let attempt = 1; ; attempt++) {
-        try {
-            return await axios.post(`${AI_SERVICE_URL}${endpoint}`, data, {
-                headers: { 'x-api-key': AI_API_KEY },
-                timeout: 90000 // covers a cold start plus AI generation
-            });
-        } catch (error) {
-            const status = error.response?.status;
-            const waking = WAKE_STATUSES.has(status) || error.code === 'ECONNRESET';
-            if (!waking || Date.now() + 5000 > deadline) throw error;
-            console.warn(`AI engine not ready (${status || error.code}), retry ${attempt}...`);
-            await sleep(Math.min(5000 * attempt, 15000));
-        }
-    }
-};
-
-// Wake the engine as soon as the backend boots, so it is usually ready before the first user.
-axios.get(`${AI_SERVICE_URL}/health`, { timeout: 90000 }).catch(() => {});
 
 // Uniform error response for every AI route
 const sendAiError = (res, label, error) => {

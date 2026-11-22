@@ -1,9 +1,23 @@
 const nodemailer = require('nodemailer');
 
-/**
- * Creates a Nodemailer transporter using environment variables.
- * Falls back to console logging if email config is missing.
- */
+// Two ways to send email:
+//   1. BREVO_API_KEY  - Brevo's HTTPS API (works on hosts that block SMTP ports, e.g. Render free tier)
+//   2. EMAIL_HOST/EMAIL_USER/EMAIL_PASS - plain SMTP (e.g. Gmail app password), fine for local dev
+const isProd = process.env.NODE_ENV === 'production';
+
+const emailConfigured = () =>
+    !!(process.env.BREVO_API_KEY || (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS));
+
+const sendViaBrevo = async ({ from, to, subject, html }) => {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': process.env.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ sender: { name: 'AIReady', email: from }, to: [{ email: to }], subject, htmlContent: html }),
+        signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) throw new Error(`Brevo API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+};
+
 const createTransporter = () => {
     const host = process.env.EMAIL_HOST;
     const port = parseInt(process.env.EMAIL_PORT, 10);
@@ -20,6 +34,10 @@ const createTransporter = () => {
         port: port || 587,
         secure: port === 465,
         auth: { user, pass },
+        // fail fast instead of hanging for minutes when the SMTP port is blocked
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
     });
 };
 
@@ -29,7 +47,6 @@ const createTransporter = () => {
  * @param {string} otp - The 6-digit OTP code
  */
 const sendOtpEmail = async (toEmail, otp) => {
-    const transporter = createTransporter();
     const from = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@aiready.app';
 
     const htmlBody = `
@@ -65,23 +82,22 @@ const sendOtpEmail = async (toEmail, otp) => {
         html: htmlBody,
     };
 
-    if (!transporter) {
-        // Fallback: log to console for development
-        console.log('[EmailService] OTP Email (console fallback):');
-        console.log(`  To: ${toEmail}`);
-        console.log(`  OTP: ${otp}`);
-        return;
-    }
-
     try {
-        await transporter.sendMail(mailOptions);
-        console.log(`[EmailService] OTP email sent to ${toEmail}`);
+        if (process.env.BREVO_API_KEY) {
+            await sendViaBrevo({ from, to: toEmail, subject: mailOptions.subject, html: htmlBody });
+        } else {
+            const transporter = createTransporter();
+            if (!transporter) throw new Error('email is not configured');
+            await transporter.sendMail(mailOptions);
+        }
+        console.log('[EmailService] OTP email sent');
+        return true;
     } catch (error) {
-        // Fallback: log OTP to console so dev/testing can still proceed
         console.error('[EmailService] Failed to send OTP email:', error.message);
-        console.log(`[EmailService] FALLBACK — OTP for ${toEmail}: ${otp}`);
-        console.log('[EmailService] Update EMAIL_USER and EMAIL_PASS in .env with real credentials to send actual emails.');
+        // Local development only: print the code so the reset flow can still be tested
+        if (!isProd) console.log(`[EmailService] DEV FALLBACK - OTP for ${toEmail}: ${otp}`);
+        return false;
     }
 };
 
-module.exports = { sendOtpEmail };
+module.exports = { sendOtpEmail, emailConfigured };

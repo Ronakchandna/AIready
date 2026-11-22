@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler');
-const axios = require('axios');
+const { forwardToAi } = require('../config/ai');
 const User = require('../models/User');
 const Resume = require('../models/Resume');
 const JobApplication = require('../models/JobApplication');
@@ -202,24 +202,16 @@ const evaluateGlobalRank = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Resume text is required for ranking' });
     }
 
-    // Call Python AI Engine
-    const { AI_SERVICE_URL: AI_URL, AI_API_KEY: AI_KEY } = require('../config/ai');
-
     let aiData;
     try {
-        const response = await axios.post(`${AI_URL}/evaluate_global_rank`, {
-            resume_text: resumeText
-        }, {
-            headers: { 'x-api-key': AI_KEY },
-            timeout: 90000
-        });
+        const response = await forwardToAi('/evaluate_global_rank', { resume_text: resumeText });
 
         if (!response.data || !response.data.success) {
             return res.status(500).json({ message: 'Failed to evaluate resume from AI' });
         }
         aiData = response.data.data;
     } catch (error) {
-        console.error('AI Engine ranking error:', error);
+        console.error('AI Engine ranking error:', error.response?.data || error.message);
         return res.status(500).json({ message: 'Error communicating with AI Engine' });
     }
 
