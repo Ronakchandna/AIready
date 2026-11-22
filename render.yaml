@@ -1,0 +1,21 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# Render dashboard -> New -> Blueprint -> pick this repo. You will be asked for the values marked sync: false.
+services:
+  - type: web
+    name: ai-resume-engine
+    runtime: docker
+    plan: free              # ~225 MB RAM used; free tier sleeps after 15 min idle (first request then takes ~1 min)
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true        # redeploys on every push to main
+    envVars:
+      - key: API_KEY
+        generateValue: true # Render creates a strong random key; copy it from the Environment tab for your backend
+      - key: GROQ_API_KEY
+        sync: false         # paste your Groq key when creating the service
+      - key: ALLOWED_ORIGINS
+        sync: false         # e.g. https://your-frontend.onrender.com,https://your-backend.onrender.com
+      - key: TRUST_PROXY
+        value: "true"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
