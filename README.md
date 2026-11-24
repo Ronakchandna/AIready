@@ -34,6 +34,7 @@ ready-made account (no sign-up).
 | Feature | What it does |
 |---|---|
 | **Resume Builder** | Form-based editor with a live preview in 10 themes and zoom. Download an **ATS-safe PDF** (selectable text) or a **designed PDF** in the chosen theme. |
+| **My Resumes** | Keep several resumes (one per kind of job): open, rename, duplicate or delete them. |
 | **Version history** | Save snapshots of your resume, see your match score improve over time, restore any version. |
 | **AI import** | Upload an existing resume PDF or a LinkedIn profile PDF; the AI fills in the whole builder. **Scanned PDFs are read with OCR.** |
 | **AI bullet enhancer** | Rewrites a weak bullet point into a strong, action-verb, impact-focused one. |
@@ -41,11 +42,11 @@ ready-made account (no sign-up).
 | **Resume Analyzer** | Upload a PDF + job description → match score, ATS score with breakdown, matched/missing skills, section check and AI suggestions. |
 | **Mock Interview** | 5 questions tailored to the job (and your resume), voice input/output, 90-second stress timer, AI scoring of each answer, PDF report. |
 | **AI Career Coach** | Chat with an AI coach that knows your resume: what to learn, interview prep, referrals, offers. |
-| **Cover Letter** | Personalised cover letter from your resume + job description; copy or download as PDF. |
+| **Cover Letter** | Personalised cover letter from your Resume Builder resume (or pasted text) + job description; edit it, copy or download as PDF. |
 | **Job Tracker** | Kanban board (saved → applied → interviewing → offer / rejected) with drag and drop. |
 | **Dashboard** | Interview count, average score, ATS hits, 7-day activity chart and recent activity. |
 | **Global Rank & Leaderboard** | 0–1000 score and tier (Bronze → Diamond) from your resume; opt-in public leaderboard and profile page. |
-| **Accounts** | Register/login (JWT), one-click demo account, profile, stored resume PDFs, dark mode. |
+| **Accounts** | Register/login (JWT), one-click demo account, profile, stored resume PDFs, dark mode, delete account (removes all data). |
 
 ## Architecture
 
@@ -93,7 +94,7 @@ npm start
 ## Tests
 
 ```bash
-cd backend   && npm test                      # 15 API tests on an in-memory PostgreSQL (PGlite)
+cd backend   && npm test                      # 17 API tests on an in-memory PostgreSQL (PGlite)
 cd ai-engine && pytest                        # 31 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
 cd frontend  && npm test -- --watchAll=false  # 7 tests: login + demo flow, PDF generator
 cd frontend  && npm run build                 # production build (lint errors fail the build)

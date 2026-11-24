@@ -21,6 +21,8 @@ import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import PublicProfile from './pages/PublicProfile';
+import NotFound from './pages/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Wake the free-tier AI engine once per session as soon as a signed-in user opens the app
 let aiWarmed = false;
@@ -257,18 +259,22 @@ const MobileBottomNav = () => {
     );
 };
 
-const InternalLayout = ({ children }) => (
+const InternalLayout = ({ children }) => {
+    const location = useLocation();
+    return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-900 font-sans transition-colors duration-200">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
             <MobileTopBar />
             <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-                {children}
+                {/* a crash in one page shows a recovery card instead of a blank app */}
+                <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
             </main>
             <MobileBottomNav />
         </div>
     </div>
-);
+    );
+};
 
 const AnimatedRoutes = () => {
     const location = useLocation();
@@ -296,6 +302,7 @@ const AnimatedRoutes = () => {
                                     <Route path="/leaderboard" element={<PageTransition><Leaderboard /></PageTransition>} />
                                     <Route path="/jobs" element={<PageTransition><JobTracker /></PageTransition>} />
                                     <Route path="/profile" element={<PageTransition><Profile /></PageTransition>} />
+                                    <Route path="*" element={<NotFound />} />
                                 </Routes>
                             </AnimatePresence>
                         </InternalLayout>
@@ -319,11 +326,13 @@ const AppContent = () => {
 
 function App() {
     return (
-        <ThemeProvider>
-            <AuthProvider>
-                <AppContent />
-            </AuthProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+            <ThemeProvider>
+                <AuthProvider>
+                    <AppContent />
+                </AuthProvider>
+            </ThemeProvider>
+        </ErrorBoundary>
     );
 }
 

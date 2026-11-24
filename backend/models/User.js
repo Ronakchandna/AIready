@@ -105,6 +105,13 @@ const User = {
 
     matchPassword: (user, plain) => bcrypt.compare(String(plain), user.password),
 
+    // Deletes the account; resumes, versions, jobs, interviews and uploaded files go with it (ON DELETE CASCADE)
+    async delete(id) {
+        if (!isId(id)) return false;
+        const rows = await db.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+        return rows.length > 0;
+    },
+
     async leaderboard(category) {
         const params = [];
         let where = 'leaderboard_opt_in AND global_rank_score > 0';

@@ -1,16 +1,35 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { clean as cleanPdfText } from '../utils/generateAtsPdf';
-import { PenTool, Download, Copy, CheckCircle, FileText } from 'lucide-react';
+import { PenTool, Download, Copy, CheckCircle, FileText, Wand2 } from 'lucide-react';
+import { useResume } from '../context/ResumeContext';
+import { resumeToText } from '../utils/resumeText';
+import { postAi, aiErrorText, WAKING_MESSAGE, warmUpAi } from '../utils/aiClient';
 
 const CoverLetter = () => {
+    const { resumeData, resumeId, loadFromCloud } = useResume();
     const [resumeText, setResumeText] = useState('');
     const [jobDescription, setJobDescription] = useState('');
     const [coverLetter, setCoverLetter] = useState('');
     const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState('');
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
+
+    const builderText = resumeToText(resumeData);
+    const hasBuilderResume = !!resumeId && builderText.length > 80;
+
+    useEffect(() => {
+        warmUpAi();
+        if (!resumeId) loadFromCloud();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Pre-fill with the Resume Builder resume once it is loaded (the user can still edit it)
+    useEffect(() => {
+        if (hasBuilderResume && !resumeText) setResumeText(builderText);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasBuilderResume]);
 
     const handleGenerate = async () => {
         if (!resumeText.trim() || !jobDescription.trim()) {
@@ -20,28 +39,24 @@ const CoverLetter = () => {
 
         setLoading(true);
         setError('');
+        setStatus('');
         setCoverLetter('');
 
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_API}/ai/generate-cover-letter`, {
-                resume_text: resumeText,
-                job_description: jobDescription
-            }, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
+            const response = await postAi('/ai/generate-cover-letter', {
+                resume_text: resumeText.slice(0, 20000),
+                job_description: jobDescription.slice(0, 15000)
+            }, { onStatus: (s) => setStatus(s === 'waking' ? WAKING_MESSAGE : '') });
 
             if (response.data.success) {
                 setCoverLetter(response.data.cover_letter);
             }
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.detail || 'Failed to generate cover letter. Please check your connection or AI Engine.');
+            setError(aiErrorText(err, 'Failed to generate the cover letter. Please try again.'));
         } finally {
             setLoading(false);
+            setStatus('');
         }
     };
 
@@ -87,7 +102,7 @@ const CoverLetter = () => {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8 font-sans">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 font-sans">
             <header>
                 <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
                     <PenTool className="text-brand-600" size={32} />
@@ -104,7 +119,17 @@ const CoverLetter = () => {
                             <FileText size={16} className="text-brand-500" />
                             Your Resume Text
                         </label>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Paste the core text from your resume. The AI will use this to highlight your actual experience.</p>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {hasBuilderResume ? 'Filled from your Resume Builder - edit it if you like.' : 'Paste the core text from your resume, or create one in the Resume Builder.'}
+                            </p>
+                            {hasBuilderResume && (
+                                <button type="button" onClick={() => setResumeText(builderText)}
+                                    className="text-xs font-bold px-3 py-1.5 rounded-lg border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center gap-1.5">
+                                    <Wand2 size={13} /> Use my Builder resume
+                                </button>
+                            )}
+                        </div>
                         <textarea
                             className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-4 h-48 focus:ring-4 focus:ring-brand-500/20 focus:border-brand-500 dark:focus:border-brand-500 bg-slate-50 dark:bg-slate-950 transition-all text-slate-700 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 resize-none outline-none"
                             placeholder="e.g. Senior Software Engineer with 5+ years of experience in React, Node.js..."
@@ -135,6 +160,7 @@ const CoverLetter = () => {
                     >
                         {loading ? 'Crafting your perfect letter...' : '✨ Generate Cover Letter'}
                     </button>
+                    {loading && status && <p className="text-sm text-center text-slate-500 dark:text-slate-400 font-medium">{status}</p>}
                 </div>
 
                 {/* Preview Column */}
@@ -158,12 +184,14 @@ const CoverLetter = () => {
                                 </button>
                             </div>
 
-                            <div
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">You can edit the letter here before copying or downloading it.</p>
+                            <textarea
                                 id="cover-letter-preview"
-                                className="bg-white dark:bg-slate-800 p-10 flex-1 shadow-md border border-slate-200 dark:border-slate-700 rounded-xl overflow-y-auto whitespace-pre-wrap text-slate-800 dark:text-slate-100 leading-relaxed font-serif text-sm"
-                            >
-                                {coverLetter}
-                            </div>
+                                aria-label="Cover letter"
+                                value={coverLetter}
+                                onChange={(e) => setCoverLetter(e.target.value)}
+                                className="bg-white dark:bg-slate-800 p-6 md:p-10 flex-1 min-h-[480px] shadow-md border border-slate-200 dark:border-slate-700 rounded-xl resize-none text-slate-800 dark:text-slate-100 leading-relaxed font-serif text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
                         </>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-center space-y-4">

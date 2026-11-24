@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { checkPdf, aiErrorText } from '../utils/aiClient';
-import { User, Phone, Mail, Hash, Image as ImageIcon, ExternalLink, Copy, CheckCircle } from 'lucide-react';
+import axios from 'axios';
+import { User, Phone, Mail, Hash, Image as ImageIcon, ExternalLink, Copy, CheckCircle, Trash2 } from 'lucide-react';
 
 const Profile = () => {
     const { user, updateProfile, uploadProfileResume, deleteProfileResume } = useAuth();
@@ -398,6 +399,74 @@ const Profile = () => {
                     </div>
                 </form>
             </div>
+
+            <DeleteAccount email={user.email} />
+        </div>
+    );
+};
+
+// Permanently delete the account and all data (password required)
+const DeleteAccount = ({ email }) => {
+    const { logout } = useAuth();
+    const [open, setOpen] = useState(false);
+    const [password, setPassword] = useState('');
+    const [confirmText, setConfirmText] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const isDemo = email === 'demo@aiready.app';
+
+    const remove = async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError('');
+        try {
+            const API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
+            await axios.delete(`${API}/auth/profile`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                data: { password },
+            });
+            try { sessionStorage.clear(); } catch { /* ignore */ }
+            logout();
+            window.location.assign('/login');
+        } catch (err) {
+            setError(aiErrorText(err, 'Could not delete the account. Please try again.'));
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="mt-8 bg-white dark:bg-slate-950 p-4 md:p-8 rounded-3xl border border-red-200 dark:border-red-900/50">
+            <h3 className="text-lg font-bold text-red-700 dark:text-red-400 flex items-center gap-2"><Trash2 size={20} /> Delete account</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Permanently deletes your account, all resumes and versions, uploaded PDFs, interviews and job applications. This cannot be undone.
+            </p>
+            {isDemo ? (
+                <p className="mt-4 text-sm font-medium text-slate-500">The shared demo account cannot be deleted.</p>
+            ) : !open ? (
+                <button type="button" onClick={() => setOpen(true)}
+                    className="mt-4 px-4 py-2 rounded-xl border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-50 dark:hover:bg-red-900/20">
+                    Delete my account...
+                </button>
+            ) : (
+                <form onSubmit={remove} className="mt-4 space-y-3 max-w-md">
+                    <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Your password"
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-400" />
+                    <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder='Type DELETE to confirm'
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-400" />
+                    {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+                    <div className="flex gap-3">
+                        <button type="submit" disabled={busy || !password || confirmText !== 'DELETE'}
+                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            {busy ? 'Deleting...' : 'Permanently delete account'}
+                        </button>
+                        <button type="button" onClick={() => { setOpen(false); setPassword(''); setConfirmText(''); setError(''); }}
+                            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            )}
         </div>
     );
 };

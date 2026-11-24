@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Bot, User, Send, PlayCircle, CheckCircle, BarChart, Download, Mic, MicOff, Volume2, VolumeX, Timer, FileText } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { postAi, aiErrorText, WAKING_MESSAGE, warmUpAi } from '../utils/aiClient';
 
 const MockInterview = () => {
     const [step, setStep] = useState(1); // 1: Setup, 2: Interview, 3: Results
@@ -24,6 +25,7 @@ const MockInterview = () => {
     const [activeResumeUrl, setActiveResumeUrl] = useState('');
 
     useEffect(() => {
+        warmUpAi(); // start waking the free AI engine while the user reads the setup screen
         const fetchData = async () => {
             const token = localStorage.getItem('token');
             if (!token) return;
@@ -119,18 +121,13 @@ const MockInterview = () => {
         setActiveResumeUrl(resumeUrl);
 
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_API}/ai/generate-questions`, {
-                job_description: jobDescription,
+            const response = await postAi('/ai/generate-questions', {
+                job_description: jobDescription.slice(0, 15000),
                 num_questions: 5,
-                resume_text: resumeText || undefined,
+                resume_text: resumeText ? resumeText.slice(0, 20000) : undefined,
                 resume_url: resumeUrl || undefined
-            }, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
+            }, { onStatus: (s) => setError(s === 'waking' ? WAKING_MESSAGE : '') });
+            setError('');
 
             if (response.data.success) {
                 setQuestions(response.data.questions);
@@ -140,7 +137,7 @@ const MockInterview = () => {
             }
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.detail || 'Failed to generate questions. Ensure the AI Engine is running.');
+            setError(aiErrorText(err, 'Failed to generate questions. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -153,20 +150,16 @@ const MockInterview = () => {
         const question = questions[currentIndex];
         const answerText = currentAnswer;
 
+        setError('');
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_API}/ai/evaluate-answer`, {
+            const response = await postAi('/ai/evaluate-answer', {
                 question: question,
-                user_answer: answerText,
-                expected_keywords: [], // We could extract JS keywords here, but backend handles basic eval
-                resume_text: activeResumeText || undefined,
+                user_answer: answerText.slice(0, 5000),
+                expected_keywords: [],
+                resume_text: activeResumeText ? activeResumeText.slice(0, 20000) : undefined,
                 resume_url: activeResumeUrl || undefined
-            }, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
+            }, { onStatus: (s) => setError(s === 'waking' ? WAKING_MESSAGE : '') });
+            setError('');
 
             if (response.data.success) {
                 const evaluation = response.data.data;
@@ -207,7 +200,7 @@ const MockInterview = () => {
             }
         } catch (err) {
             console.error(err);
-            setError('Failed to evaluate answer. Please try again.');
+            setError(aiErrorText(err, 'Failed to evaluate the answer. Please try again.'));
         } finally {
             setLoading(false);
         }

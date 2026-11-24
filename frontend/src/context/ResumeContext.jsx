@@ -43,7 +43,7 @@ export const ResumeProvider = ({ children }) => {
                 setResumeId(data.data._id);
                 const content = data.data.content || {};
                 setResumeData({
-                    title: content.title || 'My Resume',
+                    title: data.data.title || content.title || 'My Resume',
                     contact: {
                         fullName: content.contact?.fullName || '',
                         email: content.contact?.email || '',
@@ -333,6 +333,7 @@ export const ResumeProvider = ({ children }) => {
             loadFromCloud,
             loadResume,
             createNewResume,
+            updateTitle: (title) => setResumeData((prev) => ({ ...prev, title })),
             importFromLinkedIn,
             importPrebuiltResume,
             resumeId,

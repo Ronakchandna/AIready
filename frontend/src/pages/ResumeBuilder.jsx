@@ -3,9 +3,9 @@ import { useResume } from '../context/ResumeContext';
 import { generateAtsPdf } from '../utils/generateAtsPdf';
 import { downloadDesignedPdf } from '../utils/designedPdf';
 import VersionHistory from '../components/VersionHistory';
-import { WAKING_MESSAGE } from '../utils/aiClient';
-import { Download, UploadCloud, PenTool, Linkedin, History, ChevronDown } from 'lucide-react';
-import axios from 'axios';
+import MyResumes from '../components/MyResumes';
+import { WAKING_MESSAGE, postAi, aiErrorText } from '../utils/aiClient';
+import { Download, UploadCloud, PenTool, Linkedin, History, ChevronDown, FolderOpen } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 const inputClass = "w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-4 focus:ring-brand-500/20 focus:border-brand-500 dark:focus:border-brand-500 outline-none transition-all shadow-soft";
@@ -92,21 +92,18 @@ const ExperienceForm = () => {
     const handleEnhanceBullet = async () => {
         if (!newExp.description.trim()) return;
         setEnhancingBullet(true);
+        const id = toast.loading('Improving your bullet point...');
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_API}/ai/enhance-bullet`, {
-                bullet_point: newExp.description
-            }, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
+            const response = await postAi('/ai/enhance-bullet', {
+                bullet_point: newExp.description.slice(0, 1000)
+            }, { onStatus: (s) => toast.loading(s === 'waking' ? WAKING_MESSAGE : 'Improving your bullet point...', { id }) });
             if (response.data.success) {
                 setNewExp({ ...newExp, description: response.data.enhanced_bullet });
-            }
+                toast.success(response.data.fallback ? 'Improved (offline mode)' : 'Bullet point improved!', { id });
+            } else toast.dismiss(id);
         } catch (error) {
             console.error('Failed to enhance bullet point', error);
+            toast.error(aiErrorText(error, 'Could not improve the bullet point.'), { id });
         } finally {
             setEnhancingBullet(false);
         }
@@ -203,23 +200,19 @@ const EducationSkillsForm = () => {
         if (!jdText.trim()) return;
         setLoadingSuggestions(true);
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_API}/ai/extract-keywords`, {
-                job_description: jdText
-            }, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
+            const response = await postAi('/ai/extract-keywords', {
+                job_description: jdText.slice(0, 15000)
+            }, { onStatus: (s) => s === 'waking' && toast(WAKING_MESSAGE, { duration: 8000 }) });
             if (response.data.success) {
                 // Filter out skills already in resumeData.skills
-                const existingLowercase = resumeData.skills.map(s => s.toLowerCase());
-                const newSuggestions = response.data.keywords.filter(kw => !existingLowercase.includes(kw.toLowerCase()));
+                const existingLowercase = resumeData.skills.map(s => String(s).toLowerCase());
+                const newSuggestions = (response.data.keywords || []).filter(kw => !existingLowercase.includes(kw.toLowerCase()));
                 setSuggestedSkills(newSuggestions);
+                if (!newSuggestions.length) toast.success('Your skills already cover this job description.');
             }
         } catch (error) {
             console.error('Failed to get suggestions', error);
+            toast.error(aiErrorText(error, 'Could not get skill suggestions.'));
         } finally {
             setLoadingSuggestions(false);
         }
@@ -678,7 +671,8 @@ export const ResumePreview = () => {
 
 const ResumeBuilder = () => {
     const [activeTab, setActiveTab] = useState('contact');
-    const { saveToCloud, isSaving, lastSaved, resumeData, updateTheme, importFromLinkedIn, importPrebuiltResume, resumeId, loadFromCloud } = useResume();
+    const { saveToCloud, isSaving, lastSaved, resumeData, updateTheme, importFromLinkedIn, importPrebuiltResume, resumeId, loadFromCloud, loadResume, createNewResume, updateTitle } = useResume();
+    const [showResumes, setShowResumes] = useState(false);
     const [uploading, setUploading] = useState(false);
     // Start zoomed so the A4 page (794px) fits next to the sidebar (256px) and editor (420px)
     const [zoom, setZoom] = useState(() => {
@@ -844,6 +838,11 @@ const ResumeBuilder = () => {
                         <option value="executive">Executive</option>
                         <option value="startup">Startup</option>
                     </select>
+                    <button onClick={() => setShowResumes(true)} title="My resumes: open, rename, duplicate or delete"
+                        className="bg-white border border-slate-300 text-slate-700 px-3 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:border-brand-400 hover:text-brand-700 transition-all shadow-sm active:scale-95 text-sm whitespace-nowrap">
+                        <FolderOpen size={16} />
+                        <span className="hidden xl:inline">My Resumes</span>
+                    </button>
                     <button onClick={() => setShowVersions(true)} title="Version history"
                         className="bg-white border border-slate-300 text-slate-700 px-3 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 hover:border-brand-400 hover:text-brand-700 transition-all shadow-sm active:scale-95 text-sm whitespace-nowrap">
                         <History size={16} />
@@ -890,6 +889,17 @@ const ResumeBuilder = () => {
 
             <EditorPanel />
             <PreviewPanel />
+
+            {showResumes && (
+                <MyResumes
+                    currentId={resumeId}
+                    onBeforeSwitch={saveToCloud}
+                    onOpen={(r) => { loadResume(r._id, { ...r.content, title: r.title }); toast.success(`Opened "${r.title || 'resume'}"`); }}
+                    onNew={() => { createNewResume(); toast.success('New blank resume - click Save to Cloud to keep it.'); }}
+                    onRenamed={updateTitle}
+                    onClose={() => setShowResumes(false)}
+                />
+            )}
 
             {showVersions && (
                 <VersionHistory

@@ -233,7 +233,7 @@ const forgotPassword = async (req, res) => {
 
     // In production, say so clearly instead of pretending an email was sent
     if (process.env.NODE_ENV === 'production' && !emailConfigured()) {
-        return res.status(503).json({ message: 'Password reset by email is not available right now. Please contact support.' });
+        return res.status(503).json({ message: 'Password reset emails are not set up on this site yet. If you can still sign in, change your password on the Profile page; otherwise contact the site owner.' });
     }
 
     try {
@@ -301,7 +301,33 @@ const resetPassword = async (req, res) => {
     }
 };
 
+// @desc    Permanently delete the signed-in user's account and all their data
+// @route   DELETE /api/auth/profile   body: { password }
+// @access  Private
+const deleteAccount = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.email === demo.DEMO_EMAIL) {
+            return res.status(403).json({ message: 'The shared demo account cannot be deleted.' });
+        }
+        const { password } = req.body || {};
+        if (typeof password !== 'string' || !password) {
+            return res.status(400).json({ message: 'Enter your password to confirm.' });
+        }
+        if (!(await User.matchPassword(user, password))) {
+            return res.status(401).json({ message: 'Password is incorrect.' });
+        }
+        await User.delete(user._id);
+        res.json({ success: true, message: 'Your account and all your data have been deleted.' });
+    } catch (error) {
+        console.error('Delete Account Error:', error);
+        res.status(500).json({ message: 'Server error deleting the account' });
+    }
+};
+
 module.exports = {
+    deleteAccount,
     registerUser,
     loginUser,
     demoLogin,

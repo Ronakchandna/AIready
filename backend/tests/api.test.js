@@ -168,6 +168,20 @@ test('AI upload routes validate input before calling the engine; status reports 
     assert.equal((await call('GET', '/ai/status')).status, 401);
 });
 
+test('delete account needs the password and removes all the user data', async () => {
+    const { token } = await register('leaving@example.com');
+    const r = await call('POST', '/resume', { title: 'CV', content: { skills: ['Go'] } }, token);
+    const resumeId = r.data.data._id;
+    assert.equal((await call('DELETE', '/auth/profile', {}, token)).status, 400);
+    assert.equal((await call('DELETE', '/auth/profile', { password: 'wrong-pass' }, token)).status, 401);
+    const ok = await call('DELETE', '/auth/profile', { password: 'secret123' }, token);
+    assert.equal(ok.status, 200, JSON.stringify(ok.data));
+    assert.equal((await call('POST', '/auth/login', { email: 'leaving@example.com', password: 'secret123' })).status, 401);
+    const rows = await db.query('SELECT id FROM resumes WHERE id = $1', [resumeId]);
+    assert.equal(rows.length, 0); // cascaded
+    assert.equal((await call('GET', '/auth/profile', undefined, token)).status, 401); // old token no longer works
+});
+
 test('keep-awake window is 09:30-21:30 India time', () => {
     const { inWindow, istHour } = require('../utils/keepAwake');
     assert.equal(istHour(new Date('2026-11-25T00:00:00Z')), 5.5);
@@ -194,6 +208,11 @@ test('resume builder CRUD is scoped to the owner', async () => {
     assert.equal(updated.status, 200);
     assert.equal(updated.data.data.title, 'Main'); // title kept when omitted
     assert.deepEqual(updated.data.data.content.skills, ['Go']);
+
+    // rename only: content must be kept (My Resumes panel)
+    const renamed = await call('POST', '/resume', { id, title: 'Backend roles' }, a.token);
+    assert.equal(renamed.data.data.title, 'Backend roles');
+    assert.deepEqual(renamed.data.data.content.skills, ['Go']);
 
     assert.equal((await call('GET', '/resume', undefined, a.token)).data.data._id, id);
     assert.equal((await call('GET', '/resume/all', undefined, a.token)).data.data.length, 1);

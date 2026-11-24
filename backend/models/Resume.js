@@ -38,9 +38,10 @@ const Resume = {
     async update(id, userId, { title, content }) {
         if (!isId(id)) return null;
         return toApi(await db.one(
-            `UPDATE resumes SET title = COALESCE($3, title), content = $4, updated_at = now()
+            // content is optional: a rename ({ id, title }) must not wipe the resume
+            `UPDATE resumes SET title = COALESCE($3, title), content = COALESCE($4::jsonb, content), updated_at = now()
              WHERE id = $1 AND user_id = $2 RETURNING *`,
-            [id, userId, title || null, JSON.stringify(content || {})]
+            [id, userId, title || null, content === undefined ? null : JSON.stringify(content || {})]
         ));
     },
 
