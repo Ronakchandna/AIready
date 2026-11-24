@@ -124,7 +124,13 @@ ACTION_VERBS = {
     "established", "spearheaded", "refactored", "tested", "maintained", "resolved", "researched", "trained",
 }
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}(?!\d)")
+# Any digit run with common separators; _has_phone then requires 10-13 digits, which covers
+# +91 98765 43210, (555) 123-4567, +1 555 123 4567, 9876543210 but not dates or years.
+_PHONE_RE = re.compile(r"(?<![\w])\+?\(?\d[\d \t().-]{7,18}\d(?!\d)")
+
+
+def _has_phone(text: str) -> bool:
+    return any(10 <= len(re.sub(r"\D", "", m.group())) <= 13 for m in _PHONE_RE.finditer(text or ""))
 _LINK_RE = re.compile(r"linkedin\.com|github\.com|gitlab\.com|portfolio|https?://", re.IGNORECASE)
 _METRIC_RE = re.compile(
     r"\d+(?:[.,]\d+)?\s?(?:%|percent\b|x\b|k\b|\+|million|billion|users|customers|clients|requests|ms\b)|[$₹€£]\s?\d",
@@ -164,7 +170,7 @@ def evaluate_ats(raw_text: str, sections: Optional[Dict[str, bool]] = None) -> D
     add("sections", sec, 35)
 
     has_email = bool(_EMAIL_RE.search(raw_text))
-    has_phone = bool(_PHONE_RE.search(raw_text))
+    has_phone = _has_phone(raw_text)
     has_link = bool(_LINK_RE.search(raw_text))
     if not has_email:
         issues.append("No email address found.")

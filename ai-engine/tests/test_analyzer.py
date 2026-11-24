@@ -81,3 +81,12 @@ def test_extract_keywords_returns_skills_first():
 def test_empty_inputs_do_not_crash():
     r = analyze_resume_match("x", "y")
     assert r["score"] >= 0
+
+
+def test_phone_detection_formats():
+    from core.analyzer import _has_phone
+    found = ["+91 98765 43210", "(555) 123-4567", "+1 555 123 4567", "9876543210", "555.123.4567",
+             "phone: 98765 43210\n2019 - 2021"]
+    not_found = ["Jan 2019 - Mar 2022", "2019 - 2023", "B.Tech 2020, CGPA 8.5", "reduced latency by 30% for 12000 users"]
+    assert all(_has_phone(t) for t in found), [t for t in found if not _has_phone(t)]
+    assert not any(_has_phone(t) for t in not_found), [t for t in not_found if _has_phone(t)]

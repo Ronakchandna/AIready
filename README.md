@@ -93,7 +93,7 @@ npm start
 
 ```bash
 cd backend   && npm test                      # 15 API tests on an in-memory PostgreSQL (PGlite)
-cd ai-engine && pytest                        # 30 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
+cd ai-engine && pytest                        # 31 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
 cd frontend  && npm test -- --watchAll=false  # 7 tests: login + demo flow, PDF generator
 cd frontend  && npm run build                 # production build (lint errors fail the build)
 ```
