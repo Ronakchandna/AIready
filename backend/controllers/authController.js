@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { useCloudinary } = require('../utils/upload');
 const { sendOtpEmail, emailConfigured } = require('../utils/emailService');
+const { wakeAi } = require('../config/ai');
 
 // Generate JWT
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -75,6 +76,7 @@ const registerUser = async (req, res) => {
 // @access  Public (disabled with DEMO_MODE=false)
 const demoLogin = async (req, res) => {
     if (!demo.enabled()) return res.status(404).json({ message: 'Demo mode is disabled' });
+    wakeAi(); // start the (free, sleeping) AI engine while the user looks around
     try {
         const user = await demo.resetDemoAccount();
         res.json(profileResponse(user));
@@ -86,6 +88,7 @@ const demoLogin = async (req, res) => {
 
 const loginUser = async (req, res) => {
     const { email, password } = req.body;
+    wakeAi();
 
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
         return res.status(400).json({ message: 'Please provide valid email and password' });
@@ -171,9 +174,12 @@ const uploadProfileResume = async (req, res) => {
 
         let fileUrl = req.file.path; // Cloudinary URL
         if (!useCloudinary) {
+            if (!req.file.buffer || !req.file.buffer.subarray(0, 1024).includes('%PDF-')) {
+                return res.status(400).json({ message: 'That file is not a PDF. Export or save your resume as PDF and try again.' });
+            }
             const saved = await File.create(req.user._id, {
-                filename: req.file.originalname,
-                mimeType: req.file.mimetype,
+                filename: /\.pdf$/i.test(req.file.originalname) ? req.file.originalname : `${req.file.originalname || 'resume'}.pdf`,
+                mimeType: 'application/pdf',
                 buffer: req.file.buffer,
             });
             fileUrl = `${req.protocol}://${req.get('host')}/api/files/${saved.id}`;

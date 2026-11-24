@@ -9,7 +9,8 @@ interviews with AI feedback, write cover letters and track job applications**, a
 ready-made account (no sign-up).
 
 > The backend and AI engine run on Render's free plan. A scheduled GitHub Action keeps them awake from
-> 9:30 to 21:30 IST; outside those hours the first request can take up to ~50 seconds.
+> 9:30 to 21:30 IST. Outside those hours the AI engine needs 1-3 minutes to wake up: the app starts
+> waking it at login, shows a notice while it starts, and then finishes the upload/analysis automatically.
 
 ---
 
@@ -91,8 +92,8 @@ npm start
 ## Tests
 
 ```bash
-cd backend   && npm test                      # 14 API tests on an in-memory PostgreSQL (PGlite)
-cd ai-engine && pytest                        # 29 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
+cd backend   && npm test                      # 15 API tests on an in-memory PostgreSQL (PGlite)
+cd ai-engine && pytest                        # 30 tests: NLP, scoring, API, security, chat, OCR, offline fallbacks
 cd frontend  && npm test -- --watchAll=false  # 7 tests: login + demo flow, PDF generator
 cd frontend  && npm run build                 # production build (lint errors fail the build)
 ```

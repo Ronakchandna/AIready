@@ -3,6 +3,7 @@ import { useResume } from '../context/ResumeContext';
 import { generateAtsPdf } from '../utils/generateAtsPdf';
 import { downloadDesignedPdf } from '../utils/designedPdf';
 import VersionHistory from '../components/VersionHistory';
+import { WAKING_MESSAGE } from '../utils/aiClient';
 import { Download, UploadCloud, PenTool, Linkedin, History, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -22,17 +23,11 @@ const ContactForm = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (file.size > 5 * 1024 * 1024) {
-            setImportError('File size must be under 5MB.');
-            return;
-        }
-
+        e.target.value = null; // allow choosing the same file again
         setImportError('');
-        const success = await importFromLinkedIn(file);
-        if (!success) {
-            setImportError('Failed to parse LinkedIn PDF. Please try again.');
-        }
-        e.target.value = null; // reset
+        const result = await importFromLinkedIn(file, (s) => s === 'waking' && setImportError(WAKING_MESSAGE));
+        setImportError(result.success ? '' : result.error);
+        if (result.success) toast.success('LinkedIn profile imported!');
     };
 
     return (
@@ -40,7 +35,7 @@ const ContactForm = () => {
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-5 rounded-2xl shadow-sm text-center">
                 <h4 className="text-sm font-bold text-blue-900 mb-2">Save Time with AI Import ✨</h4>
                 <p className="text-xs text-blue-700 mb-4 font-medium">Upload your exported LinkedIn PDF profile to instantly fill out your entire resume.</p>
-                <input type="file" id="linkedin-upload" className="hidden" accept="application/pdf" onChange={handleFileChange} />
+                <input type="file" id="linkedin-upload" className="hidden" accept=".pdf,application/pdf" onChange={handleFileChange} />
                 <button
                     onClick={handleImportClick}
                     disabled={isLoading}
@@ -730,19 +725,19 @@ const ResumeBuilder = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size must be under 5MB.');
-            return;
-        }
+        e.target.value = null; // allow choosing the same file again
+        await runImport(file, importFromLinkedIn, 'Reading your LinkedIn PDF with AI...', 'LinkedIn profile imported!');
+    };
 
+    // Shared import flow for the LinkedIn and resume PDF buttons: progress toast, wake-up notice, real errors
+    const runImport = async (file, importer, loadingText, successText) => {
         setUploading(true);
-        const l_toast = toast.loading('Extracting LinkedIn data...');
-        const success = await importFromLinkedIn(file);
-        toast.dismiss(l_toast);
+        const id = toast.loading(loadingText);
+        const result = await importer(file, (s) => toast.loading(s === 'waking' ? WAKING_MESSAGE : loadingText, { id }));
+        toast.dismiss(id);
         setUploading(false);
-        if (success) toast.success('LinkedIn profile imported successfully!');
-        else toast.error('Failed to parse LinkedIn PDF. Please try again.');
-        e.target.value = null; // reset
+        if (result.success) toast.success(successText);
+        else toast.error(result.error, { duration: 6000 });
     };
 
     const TabButton = ({ id, label }) => (
@@ -770,7 +765,7 @@ const ResumeBuilder = () => {
                     <label className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-bold border ${uploading ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700' : 'bg-[#0077b5]/10 border-[#0077b5]/20 text-[#0077b5] hover:bg-[#0077b5]/20 cursor-pointer'} transition-colors`}>
                         {uploading ? <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div> : <Linkedin size={16} />}
                         {uploading ? 'Importing...' : 'LinkedIn'}
-                        <input type="file" accept=".pdf" className="hidden" onChange={handleLinkedInUpload} disabled={uploading} />
+                        <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleLinkedInUpload} disabled={uploading} />
                     </label>
 
                     {/* Prebuilt PDF Import */}
@@ -778,18 +773,11 @@ const ResumeBuilder = () => {
                         <UploadCloud size={16} />
                         <span className="hidden xs:inline">Prebuilt PDF</span>
                         <span className="xs:hidden">PDF</span>
-                        <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                        <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={async (e) => {
                             const file = e.target.files[0];
-                            if (!file) return;
-                            if (file.size > 5 * 1024 * 1024) return toast.error('File must be under 5MB');
-                            setUploading(true);
-                            const l_toast = toast.loading('Parsing PDF using AI...');
-                            const success = await importPrebuiltResume(file);
-                            toast.dismiss(l_toast);
-                            setUploading(false);
-                            if (success) toast.success('Imported successfully!');
-                            else toast.error('Failed to parse PDF.');
                             e.target.value = null;
+                            if (!file) return;
+                            await runImport(file, importPrebuiltResume, 'Reading your resume PDF with AI...', 'Resume imported - review and edit the details.');
                         }} disabled={uploading} />
                     </label>
                 </div>

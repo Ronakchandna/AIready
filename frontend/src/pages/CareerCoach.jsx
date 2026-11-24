@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import axios from 'axios';
+import { postAi, aiErrorText, WAKING_MESSAGE } from '../utils/aiClient';
 import { Sparkles, Send, User, Bot, RotateCcw, FileText, Loader2 } from 'lucide-react';
 import { useResume } from '../context/ResumeContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,17 +73,16 @@ const CareerCoach = () => {
         setError('');
         setSending(true);
         try {
-            const NODE_API = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
             // the welcome message is UI only; send the real conversation (last 20 turns)
             const history = next.filter((m) => m.content !== WELCOME.content).slice(-20).map(({ role, content: c }) => ({ role, content: c.slice(0, 4000) }));
-            const { data } = await axios.post(`${NODE_API}/ai/career-chat`, {
+            const { data } = await postAi('/ai/career-chat', {
                 messages: history,
-                resume_text: useResumeContext && hasResume ? resumeText : undefined,
-            }, { headers: { Authorization: `Bearer ${token}` } });
+                resume_text: useResumeContext && hasResume ? resumeText.slice(0, 20000) : undefined,
+            }, { onStatus: (s) => setError(s === 'waking' ? WAKING_MESSAGE : '') });
+            setError('');
             setMessages([...next, { role: 'assistant', content: data.reply, offline: !!data.fallback }]);
         } catch (err) {
-            setError(err.response?.data?.message || 'The coach could not answer right now. Please try again.');
+            setError(aiErrorText(err, 'The coach could not answer right now. Please try again.'));
             setMessages(messages); // roll back the unanswered question
             setInput(content);
         } finally {

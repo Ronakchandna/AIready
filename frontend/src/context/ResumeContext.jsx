@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
+import { NODE_API, postAi, aiErrorText, checkPdf } from '../utils/aiClient';
 
 const ResumeContext = createContext();
 
@@ -152,163 +153,94 @@ export const ResumeProvider = ({ children }) => {
         setLastSaved(null);
     };
 
-    const importFromLinkedIn = async (file) => {
+    // Import a resume / LinkedIn PDF: the AI fills the builder, the result is saved to the cloud.
+    // Returns { success, error }. onStatus('waking') is called while the free AI engine starts up.
+    const importPdf = async (file, kind, onStatus) => {
+        const fileError = checkPdf(file);
+        if (fileError) return { success: false, error: fileError };
         setIsLoading(true);
         try {
             const formData = new FormData();
             formData.append('file', file);
-
-            const NODE_URL = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${NODE_URL}/ai/parse-linkedin`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
-
-            if (response.data.success && response.data.data) {
-                const aiData = response.data.data;
-                const newResumeData = {
-                    title: aiData.title || 'LinkedIn Auto-Import',
-                    contact: {
-                        fullName: aiData.contact?.fullName || '',
-                        email: aiData.contact?.email || '',
-                        phone: aiData.contact?.phone || '',
-                        linkedin: aiData.contact?.linkedin || '',
-                        portfolio: aiData.contact?.portfolio || ''
-                    },
-                    summary: aiData.summary || '',
-                    experience: Array.isArray(aiData.experience) ? aiData.experience : [],
-                    education: Array.isArray(aiData.education) ? aiData.education : [],
-                    projects: Array.isArray(aiData.projects) ? aiData.projects : [],
-                    skills: Array.isArray(aiData.skills) ? aiData.skills : [],
-                    theme: resumeData.theme || 'modern'
-                };
-
-                let savedId = null;
-                const token = localStorage.getItem('token');
-
-                if (token) {
-                    try {
-                        const payload = {
-                            title: `LinkedIn Import - ${new Date().toLocaleDateString()}`,
-                            content: newResumeData
-                        };
-                        const NODE_URL = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-                        const saveResponse = await axios.post(`${NODE_URL}/resume`, payload, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
-                        if (saveResponse.data.success) {
-                            savedId = saveResponse.data.data._id;
-                            setLastSaved(new Date());
-                        }
-                    } catch (e) {
-                        console.error('Failed to auto-save to cloud', e);
-                    }
-                }
-
-                setResumeData(newResumeData);
-                setResumeId(savedId);
-                return true;
+            const endpoint = kind === 'linkedin' ? '/ai/parse-linkedin' : '/ai/parse-resume';
+            const response = await postAi(endpoint, formData, { onStatus });
+            const aiData = response.data?.data;
+            if (!response.data?.success || !aiData) {
+                return { success: false, error: 'The AI could not read this PDF. Try another file or fill the builder manually.' };
             }
+
+            let n = Date.now();
+            const withIds = (list) => (Array.isArray(list) ? list : [])
+                .filter((item) => item && typeof item === 'object')
+                .map((item) => ({ ...item, id: n++ })); // ids are needed to edit/remove single entries
+            const newResumeData = {
+                title: aiData.title || (kind === 'linkedin' ? 'LinkedIn Import' : 'Imported Resume'),
+                contact: {
+                    fullName: aiData.contact?.fullName || '',
+                    email: aiData.contact?.email || '',
+                    phone: aiData.contact?.phone || '',
+                    linkedin: aiData.contact?.linkedin || '',
+                    portfolio: aiData.contact?.portfolio || ''
+                },
+                summary: aiData.summary || '',
+                experience: withIds(aiData.experience),
+                education: withIds(aiData.education),
+                projects: withIds(aiData.projects),
+                skills: (Array.isArray(aiData.skills) ? aiData.skills : [])
+                    .map((s) => (typeof s === 'string' ? s : s?.name || '')).map((s) => s.trim()).filter(Boolean),
+                theme: resumeData.theme || 'modern'
+            };
+
+            const empty = !newResumeData.contact.fullName && !newResumeData.summary
+                && !newResumeData.experience.length && !newResumeData.education.length && !newResumeData.skills.length;
+            if (empty) {
+                return { success: false, error: 'No resume details were found in this PDF. Make sure it is your resume (not a blank or image-only page).' };
+            }
+
+            // Save to the cloud so it shows up in My Resumes and the other tools immediately
+            let savedId = null;
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    const label = kind === 'linkedin' ? 'LinkedIn Import' : 'Imported PDF';
+                    const saveResponse = await axios.post(`${NODE_API}/resume`, {
+                        title: `${label} - ${new Date().toLocaleDateString()}`,
+                        content: newResumeData
+                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    if (saveResponse.data.success) {
+                        savedId = saveResponse.data.data._id;
+                        setLastSaved(new Date());
+                    }
+                } catch (e) {
+                    console.error('Auto-save after import failed', e);
+                }
+
+                // Update the global rank in the background
+                const text = [
+                    `Summary: ${newResumeData.summary}`,
+                    `Experience: ${newResumeData.experience.map((e) => `${e.role || ''} at ${e.company || ''}. ${e.description || ''}`).join(' ')}`,
+                    `Education: ${newResumeData.education.map((e) => `${e.degree || ''} at ${e.institution || ''}. ${e.year || ''}`).join(' ')}`,
+                    `Projects: ${newResumeData.projects.map((p) => `${p.title || ''}. ${p.description || ''}`).join(' ')}`,
+                    `Skills: ${newResumeData.skills.join(', ')}`,
+                ].join('\n');
+                axios.post(`${NODE_API}/user/rank`, { resumeText: text }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => { });
+            }
+
+            setResumeData(newResumeData);
+            setResumeId(savedId);
+            return { success: true, saved: !!savedId };
         } catch (error) {
-            console.error('LinkedIn Import Failed:', error);
-            return false;
+            console.error('PDF import failed:', error);
+            return { success: false, error: aiErrorText(error, 'Could not import this PDF. Please try again.') };
         } finally {
             setIsLoading(false);
         }
-        return false;
     };
 
-    const importPrebuiltResume = async (file) => {
-        setIsLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const NODE_API_URL = process.env.REACT_APP_NODE_API_URL || 'http://localhost:5000/api';
-            const token = localStorage.getItem('token');
-
-            // 1. Parse PDF using AI Gateway
-            const response = await axios.post(`${NODE_API_URL}/ai/parse-resume`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                }
-            });
-
-            if (response.data.success && response.data.data) {
-                const aiData = response.data.data;
-                const newResumeData = {
-                    title: aiData.title || 'Prebuilt Import',
-                    contact: {
-                        fullName: aiData.contact?.fullName || '',
-                        email: aiData.contact?.email || '',
-                        phone: aiData.contact?.phone || '',
-                        linkedin: aiData.contact?.linkedin || '',
-                        portfolio: aiData.contact?.portfolio || ''
-                    },
-                    summary: aiData.summary || '',
-                    experience: Array.isArray(aiData.experience) ? aiData.experience : [],
-                    education: Array.isArray(aiData.education) ? aiData.education : [],
-                    projects: Array.isArray(aiData.projects) ? aiData.projects : [],
-                    skills: Array.isArray(aiData.skills) ? aiData.skills : [],
-                    theme: resumeData.theme || 'modern'
-                };
-
-                let savedId = null;
-
-                // 2. Auto-save to cloud so it shows in My Resumes immediately
-                if (token) {
-                    try {
-                        const payload = {
-                            title: `Prebuilt PDF - ${new Date().toLocaleDateString()}`,
-                            content: newResumeData
-                        };
-                        const saveResponse = await axios.post(`${NODE_API_URL}/resume`, payload, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
-
-                        if (saveResponse.data.success) {
-                            savedId = saveResponse.data.data._id;
-                            setLastSaved(new Date());
-                        }
-                    } catch (e) {
-                        console.error('Auto-save failed', e);
-                    }
-                }
-
-                setResumeData(newResumeData);
-                setResumeId(savedId);
-
-                // 3. Immediately Rank (Silent background trigger)
-                if (token) {
-                    try {
-                        const resumeData = response.data.data;
-                        const text = `
-                            Summary: ${resumeData.summary || ''}
-                            Experience: ${(resumeData.experience || []).map(e => `${e.role} at ${e.company}. ${e.description || ''}`).join(' ')}
-                            Education: ${(resumeData.education || []).map(e => `${e.degree} at ${e.institution}. ${e.year || ''}`).join(' ')}
-                            Projects: ${(resumeData.projects || []).map(p => `${p.title}. ${p.description || ''}`).join(' ')}
-                            Skills: ${(resumeData.skills || []).join(', ')}
-                        `;
-                        axios.post(`${NODE_API_URL}/user/rank`, { resumeText: text }, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        }).catch(() => { });
-                    } catch (e) { }
-                }
-
-                return true;
-            }
-        } catch (error) {
-            console.error('Prebuilt Import Failed:', error);
-            return false;
-        } finally {
-            setIsLoading(false);
-        }
-        return false;
-    };
+    const importFromLinkedIn = (file, onStatus) => importPdf(file, 'linkedin', onStatus);
+    const importPrebuiltResume = (file, onStatus) => importPdf(file, 'resume', onStatus);
 
     const updateContact = (field, value) => {
         setResumeData(prev => ({

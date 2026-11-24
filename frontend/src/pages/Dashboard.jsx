@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { WAKING_MESSAGE } from '../utils/aiClient';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useResume } from '../context/ResumeContext';
@@ -40,38 +41,26 @@ const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const navigate = useNavigate();
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
+        e.target.value = null; // allow choosing the same file again
         if (!file) return;
 
-        if (file.type !== 'application/pdf') {
-            toast.error('Only PDF files are supported.');
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size must be less than 5MB.');
-            return;
-        }
-
         setUploading(true);
-        const loadingToast = toast.loading('Parsing your resume with AI... Please wait.');
-
-        const success = await importPrebuiltResume(file);
-
-        toast.dismiss(loadingToast);
+        const loadingText = 'Reading your resume with AI... Please wait.';
+        const id = toast.loading(loadingText);
+        const result = await importPrebuiltResume(file, (s) => toast.loading(s === 'waking' ? WAKING_MESSAGE : loadingText, { id }));
+        toast.dismiss(id);
         setUploading(false);
 
-        if (success) {
-            toast.success('Resume imported successfully!');
-            // Optional: navigate to builder here if you imported `useNavigate`
-            // navigate('/builder'); 
+        if (result.success) {
+            toast.success('Resume imported! Opening the builder...');
+            navigate('/builder');
         } else {
-            toast.error('Failed to parse resume. Please try a different PDF or create manually.');
+            toast.error(result.error, { duration: 6000 });
         }
-
-        // Reset file input
-        e.target.value = null;
     };
 
     useEffect(() => {
@@ -132,10 +121,10 @@ const Dashboard = () => {
                         className={`flex-1 sm:flex-none bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-slate-700 hover:border-brand-400 dark:hover:border-brand-500 px-4 sm:px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base ${uploading ? 'opacity-70 pointer-events-none' : ''}`}
                     >
                         <UploadCloud size={18} />
-                        {uploading ? 'Importing...' : <><span className="hidden xs:inline">Import LinkedIn PDF</span><span className="xs:hidden">Import</span></>}
+                        {uploading ? 'Importing...' : <><span className="hidden xs:inline">Import resume PDF</span><span className="xs:hidden">Import</span></>}
                         <input
                             type="file"
-                            accept=".pdf"
+                            accept=".pdf,application/pdf"
                             className="hidden"
                             onChange={handleFileUpload}
                             disabled={uploading}

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 process.env.JWT_SECRET = 'test-secret';
 process.env.NODE_ENV = 'test';
 process.env.RATE_LIMIT_MAX = '100000';
+process.env.AI_SERVICE_URL = 'http://127.0.0.1:9'; // nothing listens here: the engine is "asleep"
 
 const db = require('../db');
 const User = require('../models/User');
@@ -118,6 +119,16 @@ test('profile PDF upload is stored in the database and downloadable', async () =
     };
 
     assert.equal((await upload('cv.txt', 'text/plain')).status, 400);
+    // a text file renamed to .pdf is rejected by its content
+    const fake = new FormData();
+    fake.append('resume', new Blob(['hello'], { type: 'application/pdf' }), 'fake.pdf');
+    const fakeRes = await fetch(`${base}/auth/profile/resume`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: fake });
+    assert.equal(fakeRes.status, 400);
+    // phones may send a PDF without extension as application/octet-stream
+    const noExt = await upload('document', 'application/octet-stream');
+    assert.equal(noExt.status, 200, JSON.stringify(noExt.data));
+    assert.equal((await call('DELETE', '/auth/profile/resume/0', undefined, token)).status, 200);
+
     const up = await upload('My CV.pdf', 'application/pdf');
     assert.equal(up.status, 200, JSON.stringify(up.data));
     const stored = up.data.storedResumes[0];
@@ -132,6 +143,29 @@ test('profile PDF upload is stored in the database and downloadable', async () =
     assert.equal((await call('DELETE', '/auth/profile/resume/0', undefined, token)).status, 200);
     assert.equal((await fetch(stored.url)).status, 404); // file removed with the link
     assert.equal((await fetch(`${base}/files/not-an-id`)).status, 404);
+});
+
+test('AI upload routes validate input before calling the engine; status reports a sleeping engine', async () => {
+    const { token } = await register('aiupload@example.com');
+    const post = async (path, field, bytes, name, extra = {}) => {
+        const form = new FormData();
+        if (bytes) form.append(field, new Blob([bytes], { type: 'application/pdf' }), name);
+        for (const [k, v] of Object.entries(extra)) form.append(k, v);
+        const res = await fetch(`${base}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
+        return { status: res.status, data: await res.json() };
+    };
+    const notPdf = await post('/ai/parse-resume', 'file', 'hello', 'cv.pdf');
+    assert.equal(notPdf.status, 400);
+    assert.match(notPdf.data.message, /not a PDF/);
+    assert.equal((await post('/ai/parse-linkedin', 'file', null)).status, 400);
+    assert.equal((await post('/ai/analyze-resume', 'resume_file', 'hello', 'cv.pdf', { job_description: 'React developer' })).status, 400);
+    assert.equal((await post('/ai/analyze-resume', 'resume_file', null, null, { job_description: 'React developer' })).status, 400);
+    assert.equal((await post('/ai/analyze-resume', 'resume_file', '%PDF-1.4 x', 'cv.pdf', { job_description: '  ' })).status, 400);
+
+    const s = await call('GET', '/ai/status', undefined, token);
+    assert.equal(s.status, 200);
+    assert.equal(s.data.ready, false); // no engine running in tests
+    assert.equal((await call('GET', '/ai/status')).status, 401);
 });
 
 test('resume builder CRUD is scoped to the owner', async () => {

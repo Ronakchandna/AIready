@@ -40,6 +40,17 @@ def test_client_errors_are_not_500(client, auth):
     assert client.post("/enhance_bullet", json={"bullet_point": "   "}, headers=auth).status_code == 422
 
 
+def test_pdf_upload_without_pdf_extension(client, auth):
+    """Phones often send 'document' with no extension: the PDF signature decides, not the name."""
+    import fitz
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), RESUME, fontsize=10)
+    pdf = doc.tobytes()
+    r = client.post("/analyze_resume", data={"job_description": JD}, headers=auth,
+                    files={"resume_file": ("document", pdf, "application/octet-stream")})
+    assert r.status_code == 200 and "Python" in r.json()["data"]["matched_skills"]
+
+
 def test_offline_fallback_is_honest(client, auth):
     r = client.post("/enhance_bullet", json={"bullet_point": "worked on the website"}, headers=auth).json()
     assert r["success"] and r["fallback"] is True and r["ai_used"] is False and "warning" in r

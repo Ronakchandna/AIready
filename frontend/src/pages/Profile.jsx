@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { checkPdf, aiErrorText } from '../utils/aiClient';
 import { User, Phone, Mail, Hash, Image as ImageIcon, ExternalLink, Copy, CheckCircle } from 'lucide-react';
 
 const Profile = () => {
@@ -306,17 +307,15 @@ const Profile = () => {
                                 + Upload PDF
                                 <input
                                     type="file"
-                                    accept="application/pdf"
+                                    accept=".pdf,application/pdf"
                                     className="hidden"
                                     onChange={async (e) => {
                                         const file = e.target.files[0];
+                                        e.target.value = ''; // allow choosing the same file again
                                         if (!file) return;
-                                        if (file.type !== "application/pdf") {
-                                            setMessage({ type: 'error', text: 'Only PDF files are allowed.' });
-                                            return;
-                                        }
-                                        if (file.size > 5 * 1024 * 1024) {
-                                            setMessage({ type: 'error', text: 'PDF must be smaller than 5MB.' });
+                                        const fileError = checkPdf(file);
+                                        if (fileError) {
+                                            setMessage({ type: 'error', text: fileError });
                                             return;
                                         }
 
@@ -328,11 +327,10 @@ const Profile = () => {
                                                 setMessage({ type: 'success', text: 'Resume uploaded successfully!' });
                                             }
                                         } catch (err) {
-                                            setMessage({ type: 'error', text: 'Upload failed.' });
+                                            setMessage({ type: 'error', text: aiErrorText(err, 'Upload failed. Please try again.') });
                                         } finally {
                                             setIsSaving(false);
-                                            setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-                                            e.target.value = ''; // Reset input
+                                            setTimeout(() => setMessage({ type: '', text: '' }), 5000);
                                         }
                                     }}
                                 />

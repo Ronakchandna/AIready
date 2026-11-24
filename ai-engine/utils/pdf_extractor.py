@@ -18,7 +18,8 @@ class PDFExtractionError(ValueError):
 
 
 def is_pdf(data: bytes) -> bool:
-    return data[:5] == b"%PDF-"
+    # Readers accept the header anywhere in the first 1 KB (some generators prepend junk/BOM)
+    return b"%PDF-" in data[:1024]
 
 
 @lru_cache(maxsize=1)

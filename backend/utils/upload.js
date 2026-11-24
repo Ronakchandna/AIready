@@ -31,10 +31,14 @@ if (useCloudinary) {
     console.log('Resume uploads: database');
 }
 
-// Only allow PDFs (MIME type AND extension)
+// Only allow PDFs. Phones and some browsers send PDFs without an extension or as
+// application/octet-stream, so accept either signal here; the controller then checks the
+// real PDF signature of the bytes (database storage).
 const fileFilter = (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (file.mimetype === 'application/pdf' && ext === '.pdf') return cb(null, true);
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const pdfMime = ['application/pdf', 'application/x-pdf'].includes(file.mimetype);
+    const unknownMime = !file.mimetype || file.mimetype === 'application/octet-stream';
+    if (pdfMime || ext === '.pdf' || (unknownMime && !ext)) return cb(null, true);
     const err = new Error('Invalid file type. Only PDF files are allowed.');
     err.status = 400;
     cb(err, false);

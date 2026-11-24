@@ -198,13 +198,12 @@ class CareerChatRequest(_Base):
 
 # --------------------------------------------------------------------------- helpers
 async def read_pdf_upload(file: UploadFile) -> str:
-    if not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(400, "Only PDF files are supported.")
+    # The PDF signature is what matters: phones often send files without a ".pdf" name.
     data = await file.read(config.MAX_PDF_BYTES + 1)
     if len(data) > config.MAX_PDF_BYTES:
         raise HTTPException(413, f"File too large. {config.MAX_PDF_BYTES // (1024 * 1024)}MB maximum.")
     if not is_pdf(data):
-        raise HTTPException(400, "The uploaded file is not a valid PDF.")
+        raise HTTPException(400, "Only PDF files are supported. Save or export your resume as PDF and try again.")
     try:
         text = await run_in_threadpool(extract_text_from_pdf, data)
     except PDFExtractionError as exc:

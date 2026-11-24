@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { protect } = require('../middleware/authMiddleware');
-const { aiErrorMessage, forwardToAi } = require('../config/ai');
+const { aiErrorMessage, forwardToAi, aiReady } = require('../config/ai');
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -18,12 +18,33 @@ const sendAiError = (res, label, error) => {
     res.status(status).json({ success: false, message, detail: message });
 };
 
+// Phones often upload "document" or "resume (1)" without an extension; the engine checks the
+// PDF signature itself, so always send a .pdf name and type.
+const pdfName = (name) => {
+    const base = (name || 'resume').replace(/[^\w.\- ()]/g, '_').slice(0, 100);
+    return /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+};
+const isPdf = (buf) => !!buf && buf.length > 4 && buf.subarray(0, 1024).includes('%PDF-');
+
 const pdfForm = (file, field) => {
     const formData = new FormData();
-    const blob = new Blob([file.buffer], { type: file.mimetype || 'application/pdf' });
-    formData.append(field, blob, file.originalname || 'resume.pdf');
+    const blob = new Blob([file.buffer], { type: 'application/pdf' });
+    formData.append(field, blob, pdfName(file.originalname));
     return formData;
 };
+
+const badPdf = (res, file) => {
+    if (!file) return res.status(400).json({ success: false, message: 'Please choose a PDF file to upload.' });
+    if (!isPdf(file.buffer)) {
+        return res.status(400).json({ success: false, message: 'That file is not a PDF. Export or save your resume as PDF and try again.' });
+    }
+    return null;
+};
+
+// @route   GET /api/ai/status  - is the AI engine awake? (also starts waking it up)
+router.get('/status', protect, async (req, res) => {
+    res.json({ success: true, ready: await aiReady() });
+});
 
 // Simple JSON pass-through routes: [path, engine endpoint, log label]
 const jsonRoutes = [
@@ -49,6 +70,13 @@ for (const [path, endpoint, label] of jsonRoutes) {
 
 // @route   POST /api/ai/analyze-resume  (PDF upload or raw text)
 router.post('/analyze-resume', protect, upload.single('resume_file'), async (req, res) => {
+    if (req.file && badPdf(res, req.file)) return;
+    if (!req.file && !(req.body.resume_text || '').trim()) {
+        return res.status(400).json({ success: false, message: 'Upload a resume PDF or use your Resume Builder resume.' });
+    }
+    if (!(req.body.job_description || '').trim()) {
+        return res.status(400).json({ success: false, message: 'Paste the job description to compare against.' });
+    }
     try {
         const formData = req.file ? pdfForm(req.file, 'resume_file') : new FormData();
         formData.append('job_description', req.body.job_description || '');
@@ -68,9 +96,7 @@ for (const [path, endpoint, label] of [
     ['/parse-resume', '/parse_resume', 'AI Parse Resume Error'],
 ]) {
     router.post(path, protect, upload.single('file'), async (req, res) => {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'PDF file is required' });
-        }
+        if (badPdf(res, req.file)) return;
         try {
             const response = await forwardToAi(endpoint, pdfForm(req.file, 'file'));
             res.status(response.status).json(response.data);

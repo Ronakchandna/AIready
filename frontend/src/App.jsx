@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ResumeProvider } from './context/ResumeContext';
@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { LayoutDashboard, FileText, CheckSquare, MessageSquare, Activity, PenTool, LogOut, Sun, Moon, TrendingUp, Menu, X, User, Sparkles } from 'lucide-react';
 import PageTransition from './components/PageTransition';
+import { warmUpAi } from './utils/aiClient';
 
 
 import ResumeBuilder from './pages/ResumeBuilder';
@@ -21,8 +22,14 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import PublicProfile from './pages/PublicProfile';
 
+// Wake the free-tier AI engine once per session as soon as a signed-in user opens the app
+let aiWarmed = false;
+
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
+    useEffect(() => {
+        if (isAuthenticated && !aiWarmed) { aiWarmed = true; warmUpAi(); }
+    }, [isAuthenticated]);
     if (loading) return <div className="h-screen flex items-center justify-center font-bold text-slate-400">Loading...</div>;
     if (!isAuthenticated) return <Navigate to="/login" replace />;
     return children;

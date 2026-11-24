@@ -15,24 +15,30 @@ const aiErrorMessage = (error, fallback = 'AI Engine service error') => {
         if (typeof data.detail === 'string') return data.detail;
         if (Array.isArray(data.detail) && data.detail[0]?.message) return data.detail[0].message;
     }
+    if (WAKE_STATUSES.has(error.response?.status) || error.code === 'ECONNRESET') {
+        return 'The AI engine is still starting up (free server). Please try again in a minute.';
+    }
     if (error.code === 'ECONNABORTED') return 'The AI engine took too long to respond. It may be waking up - please try again.';
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') return 'The AI engine is unreachable right now.';
     return fallback;
 };
 
 // Server-to-server POST to the engine. On the free tier the engine sleeps when idle and Render
-// answers 502/503 while it wakes up, so retry those for up to ~75s instead of failing the request.
+// answers 502/503 while it wakes up (a cold start can take several minutes), so retry those for
+// up to AI_WAKE_TIMEOUT_MS instead of failing the request. The frontend also waits on /api/ai/status.
 const axios = require('axios');
 const WAKE_STATUSES = new Set([502, 503, 504]);
+const WAKE_TIMEOUT_MS = Number(process.env.AI_WAKE_TIMEOUT_MS) || 150000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const forwardToAi = async (endpoint, data) => {
-    const deadline = Date.now() + 75000;
+    const deadline = Date.now() + WAKE_TIMEOUT_MS;
     for (let attempt = 1; ; attempt++) {
         try {
             return await axios.post(`${AI_SERVICE_URL}${endpoint}`, data, {
                 headers: { 'x-api-key': AI_API_KEY },
-                timeout: 90000, // covers a cold start plus AI generation
+                timeout: 90000, // one attempt: covers AI generation on a slow free instance
+                maxBodyLength: 10 * 1024 * 1024,
             });
         } catch (error) {
             const status = error.response?.status;
@@ -44,7 +50,26 @@ const forwardToAi = async (endpoint, data) => {
     }
 };
 
-// Wake the engine when the backend boots so it is usually ready before the first user
-const wakeAi = () => axios.get(`${AI_SERVICE_URL}/health`, { timeout: 90000 }).catch(() => {});
+// Wake the engine (fire and forget). Called at boot, at login and by /api/ai/status.
+let wakeInFlight = null;
+const wakeAi = () => {
+    if (!wakeInFlight) {
+        wakeInFlight = axios.get(`${AI_SERVICE_URL}/health`, { timeout: 120000 })
+            .catch(() => {})
+            .finally(() => { wakeInFlight = null; });
+    }
+    return wakeInFlight;
+};
 
-module.exports = { AI_SERVICE_URL, AI_API_KEY, aiErrorMessage, forwardToAi, wakeAi };
+// Quick readiness check: true when the engine answers /health within a few seconds.
+const aiReady = async () => {
+    try {
+        const { data } = await axios.get(`${AI_SERVICE_URL}/health`, { timeout: 6000 });
+        return data?.status === 'ok';
+    } catch {
+        wakeAi(); // keep the wake-up going in the background
+        return false;
+    }
+};
+
+module.exports = { AI_SERVICE_URL, AI_API_KEY, aiErrorMessage, forwardToAi, wakeAi, aiReady };
