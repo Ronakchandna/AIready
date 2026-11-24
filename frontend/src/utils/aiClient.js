@@ -13,7 +13,7 @@ const authHeaders = () => {
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-export const WAKING_MESSAGE = 'The AI engine is waking up (free server). This can take 1-3 minutes the first time - please keep this page open.';
+export const WAKING_MESSAGE = 'The AI engine is waking up (free server, it sleeps when nobody uses it). This usually takes 1-3 minutes, sometimes up to 10 - keep this page open and it will continue automatically.';
 
 // Readable message from any failed request
 export const aiErrorText = (err, fallback = 'Something went wrong. Please try again.') => {
@@ -40,7 +40,7 @@ export const checkPdf = (file) => {
 export const warmUpAi = () => axios.get(`${NODE_API}/ai/status`, { headers: authHeaders(), timeout: 15000 })
     .then((r) => !!r.data?.ready).catch(() => false);
 
-export const waitForAi = async (maxMs = 240000) => {
+export const waitForAi = async (maxMs = 15 * 60 * 1000) => {
     const end = Date.now() + maxMs;
     while (Date.now() < end) {
         if (await warmUpAi()) return true;

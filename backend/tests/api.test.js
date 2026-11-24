@@ -168,6 +168,15 @@ test('AI upload routes validate input before calling the engine; status reports 
     assert.equal((await call('GET', '/ai/status')).status, 401);
 });
 
+test('keep-awake window is 09:30-21:30 India time', () => {
+    const { inWindow, istHour } = require('../utils/keepAwake');
+    assert.equal(istHour(new Date('2026-11-25T00:00:00Z')), 5.5);
+    assert.equal(inWindow(new Date('2026-11-25T03:59:00Z')), false); // 09:29 IST
+    assert.equal(inWindow(new Date('2026-11-25T04:00:00Z')), true);  // 09:30 IST
+    assert.equal(inWindow(new Date('2026-11-25T15:59:00Z')), true);  // 21:29 IST
+    assert.equal(inWindow(new Date('2026-11-25T16:00:00Z')), false); // 21:30 IST
+});
+
 test('resume builder CRUD is scoped to the owner', async () => {
     const a = await register('resume-a@example.com');
     const b = await register('resume-b@example.com');

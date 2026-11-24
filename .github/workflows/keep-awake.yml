@@ -1,3 +1,6 @@
+# Backup only: GitHub throttles scheduled workflows on small repos (it may run just a few times a
+# day). The main keep-awake runs inside the backend (backend/utils/keepAwake.js).
+#
 # Render's free services sleep after ~15 minutes without traffic and then need ~50 s to wake up.
 # This pings the backend and AI engine every 10 minutes during the daytime (India time) so the
 # site responds instantly while people are using it.

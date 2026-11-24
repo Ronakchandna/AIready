@@ -8,9 +8,10 @@ interviews with AI feedback, write cover letters and track job applications**, a
 **Live demo:** https://aiready-sigma.vercel.app — click **"Try the demo"** on the login page to explore a
 ready-made account (no sign-up).
 
-> The backend and AI engine run on Render's free plan. A scheduled GitHub Action keeps them awake from
-> 9:30 to 21:30 IST. Outside those hours the AI engine needs 1-3 minutes to wake up: the app starts
-> waking it at login, shows a notice while it starts, and then finishes the upload/analysis automatically.
+> The backend and AI engine run on Render's free plan. Once someone opens the site, the backend keeps
+> itself and the AI engine awake from 9:30 to 21:30 IST. Otherwise the AI engine has to wake up first
+> (usually 1-3 minutes, sometimes longer): the app starts waking it at login, shows a notice while it
+> starts, and then finishes the upload/analysis automatically.
 
 ---
 
